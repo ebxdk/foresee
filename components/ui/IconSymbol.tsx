@@ -1,24 +1,42 @@
 // Fallback for using MaterialIcons on Android and web.
 
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
-import { ComponentProps } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import { SymbolWeight } from 'expo-symbols';
 import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
-type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
-type IconSymbolName = keyof typeof MAPPING;
+type IconMapping = {
+  [key in SFSymbols]: MaterialIconName;
+};
+
+type SFSymbols =
+  | 'house.fill'
+  | 'gauge.with.needle.fill'
+  | 'brain.head.profile'
+  | 'calendar.badge.clock'
+  | 'chart.line.uptrend.xyaxis.circle'
+  | 'chevron.right';
+
+type MaterialIconName =
+  | 'home'
+  | 'speed'
+  | 'psychology'
+  | 'event'
+  | 'trending-up'
+  | 'chevron-right';
 
 /**
  * Add your SF Symbols to Material Icons mappings here.
  * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
-const MAPPING = {
+const MAPPING: IconMapping = {
   'house.fill': 'home',
-  'paperplane.fill': 'send',
-  'chevron.left.forwardslash.chevron.right': 'code',
+  'gauge.with.needle.fill': 'speed',
+  'brain.head.profile': 'psychology',
+  'calendar.badge.clock': 'event',
+  'chart.line.uptrend.xyaxis.circle': 'trending-up',
   'chevron.right': 'chevron-right',
-} as IconMapping;
+};
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
@@ -31,11 +49,11 @@ export function IconSymbol({
   color,
   style,
 }: {
-  name: IconSymbolName;
+  name: SFSymbols;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  return <MaterialIcons name={MAPPING[name]} size={size} color={color} style={style} />;
 }

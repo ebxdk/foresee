@@ -1,0 +1,1464 @@
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Animated,
+    Dimensions,
+    Easing,
+    Keyboard,
+    KeyboardAvoidingView,
+    LayoutAnimation,
+    Modal,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    UIManager,
+    View
+} from 'react-native';
+import { convertToOpenAIMessages, getChatCompletionStream } from '../../services/openai';
+
+interface Message {
+  id: string;
+  text: string;
+  isUser: boolean;
+  timestamp: Date;
+}
+
+interface ChatHistory {
+  id: string;
+  title: string;
+  lastMessage: string;
+  timestamp: Date;
+  messages: Message[];
+}
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+export default function CoachScreen() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState<Message | null>(null);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const typingAnimation = useRef(new Animated.Value(0)).current;
+  const sidebarAnimation = useRef(new Animated.Value(0)).current;
+  const blurAnimation = useRef(new Animated.Value(0)).current;
+  const inputContainerAnimation = useRef(new Animated.Value(90)).current;
+  const lastHapticTime = useRef(0);
+  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userScrollEndTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNearBottom = useRef(true);
+  const lastContentHeight = useRef(0);
+
+  const suggestedPrompts = [
+    "Develop a research paper on AI applications in education",
+    "Enhance AI chatbot responses to user queries",
+    "How can I improve my energy levels?",
+    "Help me plan my day effectively"
+  ];
+
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        setIsInputFocused(true);
+        
+        // Buttery smooth Apple-level animation - slide to close position
+        Animated.timing(inputContainerAnimation, {
+          toValue: 34,
+          duration: Platform.OS === 'ios' ? (e.duration || 250) : 250,
+          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94), // Apple's standard easing
+          useNativeDriver: false, // Since we're animating layout properties
+        }).start();
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      (e) => {
+        setKeyboardHeight(0);
+        setIsInputFocused(false);
+        
+        // Buttery smooth Apple-level animation - slide to tab bar safe position
+        Animated.timing(inputContainerAnimation, {
+          toValue: 90,
+          duration: Platform.OS === 'ios' ? (e.duration || 250) : 250,
+          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94), // Apple's standard easing
+          useNativeDriver: false,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeout.current) {
+        clearTimeout(scrollTimeout.current);
+      }
+      if (userScrollEndTimeout.current) {
+        clearTimeout(userScrollEndTimeout.current);
+      }
+    };
+  }, []);
+
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
+  const openSidebar = () => {
+    setSidebarVisible(true);
+    
+    // Buttery smooth animation timing
+    LayoutAnimation.configureNext({
+      duration: 450,
+      create: {
+        type: LayoutAnimation.Types.spring,
+        springDamping: 0.9,
+      },
+      update: {
+        type: LayoutAnimation.Types.spring,
+        springDamping: 0.9,
+      },
+    });
+
+    // Buttery smooth spring animations with high damping (no bounce)
+    Animated.parallel([
+      Animated.spring(sidebarAnimation, {
+        toValue: 1,
+        useNativeDriver: false,
+        tension: 40,
+        friction: 10,
+      }),
+      Animated.timing(blurAnimation, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const closeSidebar = () => {
+    LayoutAnimation.configureNext({
+      duration: 400,
+      update: {
+        type: LayoutAnimation.Types.spring,
+        springDamping: 0.95,
+      },
+    });
+
+    Animated.parallel([
+      Animated.spring(sidebarAnimation, {
+        toValue: 0,
+        useNativeDriver: false,
+        tension: 50,
+        friction: 12,
+      }),
+      Animated.timing(blurAnimation, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      setSidebarVisible(false);
+    });
+  };
+
+  const startNewChat = () => {
+    // Save current chat if it has messages
+    if (messages.length > 0 && currentChatId) {
+      const chatToUpdate = chatHistory.find(chat => chat.id === currentChatId);
+      if (chatToUpdate) {
+        setChatHistory(prev => prev.map(chat => 
+          chat.id === currentChatId 
+            ? { ...chat, messages, lastMessage: messages[messages.length - 1]?.text || '' }
+            : chat
+        ));
+      }
+    } else if (messages.length > 0) {
+      // Create new chat entry for current conversation
+      const newChat: ChatHistory = {
+        id: Date.now().toString(),
+        title: generateChatTitle(messages[0]?.text || 'New Chat'),
+        lastMessage: messages[messages.length - 1]?.text || '',
+        timestamp: new Date(),
+        messages: messages
+      };
+      setChatHistory(prev => [newChat, ...prev]);
+    }
+
+    // Reset current chat
+    setMessages([]);
+    setCurrentChatId(null);
+    closeSidebar();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const loadChat = (chat: ChatHistory) => {
+    // Save current chat first if needed
+    if (messages.length > 0 && currentChatId && currentChatId !== chat.id) {
+      setChatHistory(prev => prev.map(c => 
+        c.id === currentChatId 
+          ? { ...c, messages, lastMessage: messages[messages.length - 1]?.text || '' }
+          : c
+      ));
+    }
+
+    // Load selected chat
+    setMessages(chat.messages);
+    setCurrentChatId(chat.id);
+    closeSidebar();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const deleteChat = (chatId: string) => {
+    setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
+    if (currentChatId === chatId) {
+      setMessages([]);
+      setCurrentChatId(null);
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const generateChatTitle = (firstMessage: string): string => {
+    const words = firstMessage.trim().split(' ').slice(0, 4);
+    return words.join(' ') + (firstMessage.split(' ').length > 4 ? '...' : '');
+  };
+
+  const formatRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const sendMessage = async () => {
+    if (inputText.trim() === '') return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: inputText.trim(),
+      isUser: true,
+      timestamp: new Date(),
+    };
+
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInputText('');
+    setIsTyping(true);
+
+    // If this is the first message in a new chat, create a chat history entry
+    if (messages.length === 0) {
+      const newChatId = Date.now().toString();
+      setCurrentChatId(newChatId);
+      const newChat: ChatHistory = {
+        id: newChatId,
+        title: generateChatTitle(userMessage.text),
+        lastMessage: userMessage.text,
+        timestamp: new Date(),
+        messages: newMessages
+      };
+      setChatHistory(prev => [newChat, ...prev]);
+    }
+
+    // Start typing animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(typingAnimation, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(typingAnimation, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Enhanced haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // User is sending a message, so they want to be at bottom
+    isNearBottom.current = true;
+    setIsUserScrolling(false);
+
+    // Scroll to bottom with smooth animation
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+
+    // Get AI response with streaming
+    getAIResponseStream(userMessage.text, newMessages);
+  };
+
+  const getAIResponseStream = async (userInput: string, conversationHistory: Message[]): Promise<void> => {
+    try {
+      // Start with thinking animation while getting context
+      setIsThinking(true);
+      setIsTyping(false);
+      
+      // Start thinking animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(typingAnimation, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(typingAnimation, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Convert conversation history to OpenAI format
+      const openAIMessages = convertToOpenAIMessages(
+        conversationHistory.map(msg => ({ text: msg.text, isUser: msg.isUser }))
+      );
+      
+      // Add the current user input
+      openAIMessages.push({ role: 'user', content: userInput });
+      
+      // Create initial streaming message (but don't show it yet)
+      const streamingMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: '',
+        isUser: false,
+        timestamp: new Date(),
+      };
+      
+      let accumulatedText = '';
+      let isFirstChunk = true;
+      
+      // Get streaming response from AI backend
+      for await (const chunk of getChatCompletionStream(openAIMessages)) {
+        // On first chunk, transition from thinking to streaming
+        if (isFirstChunk) {
+          setIsThinking(false);
+          setStreamingMessage(streamingMsg);
+          typingAnimation.stopAnimation();
+          isFirstChunk = false;
+        }
+        
+        accumulatedText += chunk;
+        setStreamingMessage(prev => prev ? { ...prev, text: accumulatedText } : null);
+        
+        // Throttled haptic feedback (max once every 200ms)
+        const now = Date.now();
+        if (now - lastHapticTime.current > 200) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          lastHapticTime.current = now;
+        }
+        
+        // Smart auto-scroll: only if user isn't scrolling AND is near bottom
+        if (!isUserScrolling && isNearBottom.current) {
+          if (scrollTimeout.current) {
+            clearTimeout(scrollTimeout.current);
+          }
+          scrollTimeout.current = setTimeout(() => {
+            if (!isUserScrolling && isNearBottom.current) {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }
+          }, 300);
+        }
+      }
+      
+      // Convert streaming message to final message
+      const finalMessage: Message = {
+        ...streamingMsg,
+        text: accumulatedText || "I'm sorry, I couldn't generate a response right now.",
+      };
+      
+      setMessages(prev => [...prev, finalMessage]);
+      setStreamingMessage(null);
+      setIsThinking(false);
+      
+      // Final scroll to bottom if user isn't manually scrolling and was near bottom
+      setTimeout(() => {
+        if (!isUserScrolling && isNearBottom.current) {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }
+      }, 150);
+      
+      // Update chat history with final AI response
+      if (currentChatId) {
+        setChatHistory(prev => prev.map(chat => 
+          chat.id === currentChatId 
+            ? { ...chat, messages: [...conversationHistory, finalMessage], lastMessage: finalMessage.text }
+            : chat
+        ));
+      }
+      
+      // Success haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error getting AI response stream:', error);
+      setStreamingMessage(null);
+      setIsTyping(false);
+      setIsThinking(false);
+      typingAnimation.stopAnimation();
+      
+      // Show error message
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm sorry, I encountered an error. Please try again.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, errorResponse]);
+
+      // Error haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  };
+
+  const handleSuggestedPrompt = (prompt: string) => {
+    setInputText(prompt);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const formatAIText = (text: string) => {
+    if (!text) return text;
+
+    // Split text into lines for processing
+    const lines = text.split('\n');
+    const formattedElements: any[] = [];
+
+    lines.forEach((line, lineIndex) => {
+      // Handle headers (# ## ###)
+      if (line.match(/^#{1,3}\s+/)) {
+        const level = line.match(/^#+/)?.[0].length || 1;
+        const headerText = line.replace(/^#+\s+/, '');
+        const fontSize = level === 1 ? 20 : level === 2 ? 18 : 16;
+        const fontWeight = level === 1 ? '700' : level === 2 ? '600' : '500';
+        
+        formattedElements.push(
+          <Text key={`header-${lineIndex}`} style={[styles.aiMessageText, { fontSize, fontWeight, marginTop: lineIndex > 0 ? 8 : 0, marginBottom: 4 }]}>
+            {headerText}
+          </Text>
+        );
+        return;
+      }
+
+      // Handle bullet points (- or *)
+      if (line.match(/^[\s]*[-*]\s+/)) {
+        const indent = (line.match(/^[\s]*/)?.[0].length || 0) * 10;
+        const bulletText = line.replace(/^[\s]*[-*]\s+/, '');
+        
+        formattedElements.push(
+          <Text key={`bullet-${lineIndex}`} style={[styles.aiMessageText, { marginLeft: indent, marginTop: 2 }]}>
+            <Text style={{ fontWeight: '600' }}>• </Text>
+            {formatInlineText(bulletText)}
+          </Text>
+        );
+        return;
+      }
+
+      // Handle numbered lists (1. 2. etc.)
+      if (line.match(/^[\s]*\d+\.\s+/)) {
+        const indent = (line.match(/^[\s]*/)?.[0].length || 0) * 10;
+        const numberMatch = line.match(/^[\s]*(\d+)\.\s+/);
+        const number = numberMatch?.[1] || '1';
+        const listText = line.replace(/^[\s]*\d+\.\s+/, '');
+        
+        formattedElements.push(
+          <Text key={`number-${lineIndex}`} style={[styles.aiMessageText, { marginLeft: indent, marginTop: 2 }]}>
+            <Text style={{ fontWeight: '600' }}>{number}. </Text>
+            {formatInlineText(listText)}
+          </Text>
+        );
+        return;
+      }
+
+      // Handle code blocks (```code```)
+      if (line.match(/^```/)) {
+        // Skip code block formatting for now, just show as regular text
+        const codeText = line.replace(/```/g, '');
+        if (codeText.trim()) {
+          formattedElements.push(
+            <Text key={`code-${lineIndex}`} style={[styles.aiMessageText, { backgroundColor: '#F5F5F5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, fontFamily: 'Menlo, Monaco, monospace', fontSize: 15, marginVertical: 2 }]}>
+              {codeText}
+            </Text>
+          );
+        }
+        return;
+      }
+
+      // Handle regular paragraphs
+      if (line.trim()) {
+        formattedElements.push(
+          <Text key={`text-${lineIndex}`} style={[styles.aiMessageText, { marginTop: lineIndex > 0 && formattedElements.length > 0 ? 4 : 0 }]}>
+            {formatInlineText(line)}
+          </Text>
+        );
+      } else if (formattedElements.length > 0) {
+        // Add spacing for empty lines
+        formattedElements.push(
+          <Text key={`space-${lineIndex}`} style={[styles.aiMessageText, { height: 8 }]}>{' '}</Text>
+        );
+      }
+    });
+
+    return formattedElements.length > 0 ? formattedElements : text;
+  };
+
+  const formatInlineText = (text: string) => {
+    if (!text) return text;
+
+    const elements: any[] = [];
+    let currentIndex = 0;
+    
+    // Patterns for inline formatting
+    const patterns = [
+      { regex: /\*\*(.*?)\*\*/g, style: { fontWeight: '700' } }, // Bold **text**
+      { regex: /\*(.*?)\*/g, style: { fontWeight: '600' } }, // Semi-bold *text*
+      { regex: /_(.*?)_/g, style: { fontStyle: 'italic' } }, // Italic _text_
+      { regex: /`(.*?)`/g, style: { backgroundColor: '#F5F5F5', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, fontFamily: 'Menlo, Monaco, monospace', fontSize: 15 } }, // Code `text`
+    ];
+
+    // Find all matches across all patterns
+    const allMatches: any[] = [];
+    patterns.forEach((pattern, patternIndex) => {
+      let match;
+      const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+      while ((match = regex.exec(text)) !== null) {
+        allMatches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          content: match[1],
+          style: pattern.style,
+          fullMatch: match[0]
+        });
+      }
+    });
+
+    // Sort matches by start position
+    allMatches.sort((a, b) => a.start - b.start);
+
+    // Remove overlapping matches (keep the first one)
+    const filteredMatches = allMatches.filter((match, index) => {
+      for (let i = 0; i < index; i++) {
+        if (allMatches[i].end > match.start) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (filteredMatches.length === 0) {
+      return text;
+    }
+
+    // Build the formatted text
+    filteredMatches.forEach((match, index) => {
+      // Add text before the match
+      if (match.start > currentIndex) {
+        const beforeText = text.substring(currentIndex, match.start);
+        elements.push(beforeText);
+      }
+
+      // Add the formatted match
+      elements.push(
+        <Text key={`format-${index}`} style={match.style}>
+          {match.content}
+        </Text>
+      );
+
+      currentIndex = match.end;
+    });
+
+    // Add remaining text
+    if (currentIndex < text.length) {
+      elements.push(text.substring(currentIndex));
+    }
+
+    return elements;
+  };
+
+  const renderMessage = (message: Message) => (
+    <Animated.View 
+      key={message.id} 
+      style={[
+        styles.messageContainer, 
+        message.isUser ? styles.userMessageContainer : styles.aiMessageContainer
+      ]}
+    >
+      <View style={[styles.messageBubble, message.isUser ? styles.userBubble : styles.aiBubble]}>
+        {message.isUser ? (
+          <Text style={[styles.messageText, styles.userMessageText]}>
+            {message.text}
+          </Text>
+        ) : (
+          <Text style={[styles.messageText, styles.aiMessageText]}>
+            {formatAIText(message.text)}
+          </Text>
+        )}
+      </View>
+    </Animated.View>
+  );
+
+  const renderTypingIndicator = () => {
+    const dot1 = typingAnimation.interpolate({
+      inputRange: [0, 0.33, 0.66, 1],
+      outputRange: [0.4, 1, 0.4, 0.4],
+    });
+    const dot2 = typingAnimation.interpolate({
+      inputRange: [0, 0.33, 0.66, 1],
+      outputRange: [0.4, 0.4, 1, 0.4],
+    });
+    const dot3 = typingAnimation.interpolate({
+      inputRange: [0, 0.33, 0.66, 1],
+      outputRange: [0.4, 0.4, 0.4, 1],
+    });
+
+    return (
+      <View style={[styles.messageContainer, styles.aiMessageContainer]}>
+        <View style={[styles.messageBubble, styles.aiBubble, styles.typingBubble]}>
+          <View style={styles.typingIndicator}>
+            <Animated.View style={[styles.typingDot, { opacity: dot1 }]} />
+            <Animated.View style={[styles.typingDot, { opacity: dot2 }]} />
+            <Animated.View style={[styles.typingDot, { opacity: dot3 }]} />
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderThinkingIndicator = () => {
+    const pulseAnimation = typingAnimation.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0.6, 1, 0.6],
+    });
+
+    const scaleAnimation = typingAnimation.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0.98, 1.02, 0.98],
+    });
+
+    const shimmerAnimation = typingAnimation.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, 1, 0],
+    });
+
+    return (
+      <View style={[styles.messageContainer, styles.aiMessageContainer]}>
+        <Animated.View style={[
+          styles.thinkingBubble,
+          {
+            opacity: pulseAnimation,
+            transform: [{ scale: scaleAnimation }],
+          }
+        ]}>
+          <View style={styles.thinkingContent}>
+            <View style={styles.thinkingIcon}>
+              <Animated.View style={[
+                styles.thinkingShimmer,
+                {
+                  opacity: shimmerAnimation,
+                }
+              ]} />
+              <Text style={styles.thinkingIconText}>🧠</Text>
+            </View>
+            <Text style={styles.thinkingText}>Thinking...</Text>
+            <View style={styles.thinkingDots}>
+              <Animated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
+              <Animated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
+              <Animated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
+            </View>
+          </View>
+        </Animated.View>
+      </View>
+    );
+  };
+
+  const renderSidebar = () => {
+    const sidebarTranslateX = sidebarAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-screenWidth * 0.85, 0],
+    });
+
+    const blurOpacity = blurAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    });
+
+    return (
+      <Modal
+        visible={sidebarVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeSidebar}
+        statusBarTranslucent
+      >
+        <View style={styles.sidebarContainer}>
+          {/* Apple-style Frosted Glass Blur Background */}
+          <Animated.View 
+            style={[
+              styles.blurBackground,
+              {
+                opacity: blurOpacity,
+              }
+            ]}
+          >
+            <BlurView
+              intensity={100}
+              style={StyleSheet.absoluteFillObject}
+              tint="systemMaterial"
+            />
+            {/* Additional frosted glass overlay */}
+            <View style={styles.frostedOverlay} />
+            <TouchableWithoutFeedback onPress={closeSidebar}>
+              <View style={styles.overlayTouchable} />
+            </TouchableWithoutFeedback>
+          </Animated.View>
+          
+          {/* Sidebar without bounce animation */}
+          <Animated.View 
+            style={[
+              styles.sidebar,
+              { 
+                transform: [{ translateX: sidebarTranslateX }],
+                borderTopRightRadius: 24,
+                borderBottomRightRadius: 24,
+              }
+            ]}
+          >
+            <SafeAreaView style={styles.sidebarContent}>
+              {/* Sidebar Header */}
+              <View style={styles.sidebarHeader}>
+                <TouchableOpacity
+                  style={styles.newChatButton}
+                  onPress={startNewChat}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.newChatIcon}>+</Text>
+                  <Text style={styles.newChatText}>New Chat</Text>
+              </TouchableOpacity>
+            </View>
+
+              {/* Chat History */}
+              <ScrollView style={styles.chatHistoryContainer} showsVerticalScrollIndicator={false}>
+                <Text style={styles.historyTitle}>Recent Chats</Text>
+                {chatHistory.map((chat) => (
+                  <TouchableOpacity
+                    key={chat.id}
+                    style={[
+                      styles.chatHistoryItem,
+                      currentChatId === chat.id && styles.activeChatItem
+                    ]}
+                    onPress={() => loadChat(chat)}
+                    onLongPress={() => deleteChat(chat.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.chatItemContent}>
+                      <Text style={styles.chatTitle} numberOfLines={1}>
+                        {chat.title}
+                      </Text>
+                      <Text style={styles.chatLastMessage} numberOfLines={2}>
+                        {chat.lastMessage}
+                      </Text>
+                      <Text style={styles.chatTimestamp}>
+                        {formatRelativeTime(chat.timestamp)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                
+                {chatHistory.length === 0 && (
+                  <View style={styles.emptyChatHistory}>
+                    <Text style={styles.emptyChatText}>No chat history yet</Text>
+                    <Text style={styles.emptyChatSubtext}>Start a conversation to see your chats here</Text>
+          </View>
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  };
+
+  return (
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={openSidebar}
+            activeOpacity={0.6}
+          >
+            <View style={styles.menuLine} />
+            <View style={styles.menuLine} />
+            <View style={styles.menuLine} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Capacity Coach</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.refreshIcon}>↻</Text>
+          </TouchableOpacity>
+        </View>
+
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {/* Messages */}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={[
+              styles.messagesContent,
+              {
+                paddingBottom: isInputFocused ? 20 : 120,
+              }
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onScroll={(event) => {
+              const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+              const scrollPosition = contentOffset.y;
+              const maxScroll = contentSize.height - layoutMeasurement.height;
+              
+              // Check if user is near the bottom (within 100 pixels)
+              isNearBottom.current = maxScroll - scrollPosition < 100;
+              
+              // Track content height changes
+              lastContentHeight.current = contentSize.height;
+            }}
+            onScrollBeginDrag={() => {
+              setIsUserScrolling(true);
+              isNearBottom.current = false; // Assume user scrolled away from bottom
+              
+              // Clear any pending timeouts
+              if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+                scrollTimeout.current = null;
+              }
+              if (userScrollEndTimeout.current) {
+                clearTimeout(userScrollEndTimeout.current);
+                userScrollEndTimeout.current = null;
+              }
+            }}
+            onScrollEndDrag={() => {
+              // Give user more time before resuming auto-scroll
+              if (userScrollEndTimeout.current) {
+                clearTimeout(userScrollEndTimeout.current);
+              }
+              userScrollEndTimeout.current = setTimeout(() => {
+                setIsUserScrolling(false);
+              }, 800); // Increased delay
+            }}
+            onMomentumScrollEnd={() => {
+              // Only reset if no drag timeout is active
+              if (!userScrollEndTimeout.current) {
+                setIsUserScrolling(false);
+              }
+            }}
+            scrollEventThrottle={16}
+            removeClippedSubviews={false}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+            }}
+          >
+            {messages.map(renderMessage)}
+
+            {/* Thinking indicator */}
+            {isThinking && renderThinkingIndicator()}
+
+            {/* Streaming message */}
+            {streamingMessage && renderMessage(streamingMessage)}
+
+            {/* Typing indicator */}
+            {isTyping && renderTypingIndicator()}
+          </ScrollView>
+
+          {/* Suggested prompts (only show if no messages yet) */}
+          {messages.length === 0 && !isInputFocused && (
+            <View style={styles.suggestedPromptsContainer}>
+              {suggestedPrompts.map((prompt, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.suggestedPrompt}
+                  onPress={() => handleSuggestedPrompt(prompt)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.suggestedPromptText}>{prompt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Input area with smooth animation */}
+          <Animated.View style={[
+            styles.inputContainer,
+            {
+              paddingBottom: inputContainerAnimation,
+            }
+          ]}>
+            <View style={styles.inputWrapper}>
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.attachIcon}>+</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={styles.textInput}
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Ask anything"
+                placeholderTextColor="#8E8E93"
+                multiline
+                maxLength={500}
+                textAlignVertical="center"
+                returnKeyType="send"
+                onSubmitEditing={sendMessage}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 300);
+                }}
+              />
+              <TouchableOpacity 
+                style={styles.micButton}
+                onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.micIcon}>🎤</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.sendButton,
+                  inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive
+                ]}
+                onPress={inputText.trim() ? sendMessage : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                activeOpacity={0.8}
+                disabled={!inputText.trim()}
+              >
+                <Text style={[
+                  styles.sendIcon,
+                  inputText.trim() ? styles.sendIconActive : styles.sendIconInactive
+                ]}>
+                  ↑
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+
+        {/* Sidebar */}
+        {renderSidebar()}
+    </SafeAreaView>
+    </TouchableWithoutFeedback>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 0.33,
+    borderBottomColor: '#D1D1D6',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0.5 },
+    shadowOpacity: 0.04,
+    shadowRadius: 0,
+    elevation: 1,
+  },
+  menuButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  menuLine: {
+    width: 20,
+    height: 2,
+    backgroundColor: '#1C1C1E',
+    marginVertical: 2,
+    borderRadius: 1,
+  },
+  headerCenter: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    letterSpacing: -0.45,
+  },
+  refreshButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  refreshIcon: {
+    fontSize: 20,
+    color: '#1C1C1E',
+    fontWeight: '400',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  messagesContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  messagesContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 120,
+  },
+  messageContainer: {
+    marginVertical: 3,
+  },
+  userMessageContainer: {
+    alignItems: 'flex-end',
+  },
+  aiMessageContainer: {
+    alignItems: 'flex-start',
+  },
+  messageBubble: {
+    maxWidth: screenWidth * 0.75,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  userBubble: {
+    backgroundColor: '#007AFF',
+    borderBottomRightRadius: 4,
+  },
+  aiBubble: {
+    backgroundColor: '#F2F2F7',
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    letterSpacing: -0.41,
+  },
+  userMessageText: {
+    color: '#FFFFFF',
+  },
+  aiMessageText: {
+    color: '#1C1C1E',
+  },
+  typingBubble: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#8E8E93',
+    marginHorizontal: 2,
+  },
+  suggestedPromptsContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    paddingBottom: 100,
+  },
+  suggestedPrompt: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 10,
+    borderWidth: 0.33,
+    borderColor: '#D1D1D6',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  suggestedPromptText: {
+    fontSize: 17,
+    color: '#1C1C1E',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    lineHeight: 24,
+    letterSpacing: -0.41,
+  },
+  inputContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.33,
+    borderTopColor: '#D1D1D6',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 0,
+    elevation: 5,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: '#F9F9F9',
+    borderRadius: 22,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderWidth: 0.33,
+    borderColor: '#D1D1D6',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  attachButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  attachIcon: {
+    fontSize: 20,
+    fontWeight: '300',
+    color: '#8E8E93',
+    lineHeight: 22,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 17,
+    color: '#1C1C1E',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    maxHeight: 120,
+    minHeight: 36,
+    letterSpacing: -0.41,
+  },
+  micButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  micIcon: {
+    fontSize: 16,
+  },
+  sendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  sendButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  sendButtonInactive: {
+    backgroundColor: '#F2F2F7',
+  },
+  sendIcon: {
+    fontSize: 20,
+    fontWeight: '300',
+    color: '#8E8E93',
+    lineHeight: 22,
+  },
+  sendIconActive: {
+    color: '#FFFFFF',
+  },
+  sendIconInactive: {
+    color: '#8E8E93',
+  },
+  // Sidebar Styles
+  sidebarContainer: {
+    flex: 1,
+  },
+  blurBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  frostedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    backdropFilter: 'blur(20px) saturate(180%)',
+  },
+  overlayTouchable: {
+    flex: 1,
+  },
+  sidebar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: screenWidth * 0.85,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 6, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  sidebarContent: {
+    flex: 1,
+    paddingTop: Platform.OS === 'android' ? 40 : 0,
+  },
+  sidebarHeader: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 0.33,
+    borderBottomColor: '#E5E5EA',
+  },
+  newChatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  newChatIcon: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginRight: 10,
+  },
+  newChatText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    letterSpacing: -0.41,
+  },
+  chatHistoryContainer: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  historyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1C1C1E',
+    marginTop: 24,
+    marginBottom: 16,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    letterSpacing: -0.41,
+  },
+  chatHistoryItem: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 10,
+    borderWidth: 0.33,
+    borderColor: '#E5E5EA',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  activeChatItem: {
+    backgroundColor: '#EBF5FF',
+    borderColor: '#007AFF',
+    borderWidth: 1,
+    shadowColor: '#007AFF',
+    shadowOpacity: 0.1,
+  },
+  chatItemContent: {
+    flex: 1,
+  },
+  chatTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 6,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    letterSpacing: -0.41,
+  },
+  chatLastMessage: {
+    fontSize: 14,
+    color: '#8E8E93',
+    lineHeight: 18,
+    marginBottom: 8,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  chatTimestamp: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  emptyChatHistory: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyChatText: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginBottom: 8,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  emptyChatSubtext: {
+    fontSize: 15,
+    color: '#C7C7CC',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 40,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  // Thinking Indicator Styles
+  thinkingBubble: {
+    backgroundColor: '#F0F8FF',
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    marginVertical: 3,
+    maxWidth: screenWidth * 0.75,
+    borderWidth: 1,
+    borderColor: '#E3F2FD',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  thinkingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  thinkingIcon: {
+    position: 'relative',
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thinkingIconText: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  thinkingShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 122, 255, 0.3)',
+    borderRadius: 12,
+  },
+  thinkingText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#007AFF',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    letterSpacing: -0.32,
+    marginLeft: 12,
+    flex: 1,
+  },
+  thinkingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  thinkingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#007AFF',
+    marginHorizontal: 1.5,
+  },
+}); 
