@@ -1,14 +1,14 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
-  Easing,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withTiming,
+    Easing,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withTiming,
 } from 'react-native-reanimated';
 
 export default function LoadingScreen() {
@@ -132,7 +132,7 @@ export default function LoadingScreen() {
   }));
 
   return (
-    <SafeAreaView style={styles.container}> 
+    <View style={styles.container}> 
       <View style={styles.content}>
         {/* Realistically bouncing black circle */}
         <Animated.View style={[styles.circle, circleStyle]} />
@@ -142,14 +142,14 @@ export default function LoadingScreen() {
           AI Is Processing
         </Text>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8F8FA', // Off-white background
   },
   content: {
     flex: 1,

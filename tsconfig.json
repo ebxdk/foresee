@@ -1,8 +1,59 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": [
+      "ES2020",
+      "ES2021.Promise",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowJs": false,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
     "strict": true,
+    "isolatedModules": true,
+    "customConditions": [
+      "react-native"
+    ],
+    "types": [
+      "react",
+      "node"
+    ],
+    "baseUrl": ".",
     "paths": {
+      "expo-router": [
+        "node_modules/expo-router/build/index.d.ts"
+      ],
+      "expo-router/*": [
+        "node_modules/expo-router/build/*.d.ts"
+      ],
+      "@react-navigation/native": [
+        "node_modules/@react-navigation/native/lib/typescript/src/index.d.ts"
+      ],
+      "react-native-reanimated": [
+        "node_modules/react-native-reanimated/lib/typescript/index.d.ts"
+      ],
+      "react-native-gesture-handler": [
+        "node_modules/react-native-gesture-handler/lib/typescript/index.d.ts"
+      ],
+      "expo-font": [
+        "node_modules/expo-font/build/index.d.ts"
+      ],
+      "expo-status-bar": [
+        "node_modules/expo-status-bar/build/StatusBar.d.ts"
+      ],
+      "expo-haptics": [
+        "node_modules/expo-haptics/build/Haptics.d.ts"
+      ],
+      "expo-linear-gradient": [
+        "node_modules/expo-linear-gradient/build/LinearGradient.d.ts"
+      ],
       "@/*": [
         "./*"
       ]
@@ -13,5 +64,6 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

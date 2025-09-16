@@ -6,11 +6,11 @@ const baseAnimation = JSON.parse(fs.readFileSync('./assets/Animation - 175006239
 // Modern Apple-level color schemes
 const colorSchemes = {
   thriving: {
-    primary: [0.188, 0.820, 0.345, 1],      // #30D158 - iOS System Green
-    secondary: [0.196, 0.843, 0.294, 1],    // #32D74B
-    accent: [0.157, 0.804, 0.255, 1],       // #28CD41
-    gradient1: [0.204, 0.780, 0.349, 1],    // #34C759
-    gradient2: [0.188, 0.820, 0.345, 1],    // #30D158
+    primary: [0.0, 0.85, 0.2, 1],      // #00D933 - More pure green
+    secondary: [0.0, 0.95, 0.3, 1],    // #00F24C - Even brighter green
+    accent: [0.0, 0.75, 0.15, 1],      // #00BF26 - Deep green
+    gradient1: [0.1, 0.95, 0.3, 1],    // #19F24C - Green with a hint of yellow
+    gradient2: [0.0, 0.85, 0.2, 1],    // #00D933 - Match primary
   },
   moderate: {
     primary: [1.000, 0.624, 0.039, 1],      // #FF9F0A - iOS System Orange
@@ -46,7 +46,12 @@ function removeSparkles(animation) {
   return animation;
 }
 
-function replaceColors(obj, colors) {
+function isOrangy(r, g, b) {
+  // Orangy: high red, medium-high green, low blue
+  return r > 0.8 && g > 0.5 && g < 0.9 && b < 0.4;
+}
+
+function replaceColors(obj, colors, schemeName) {
   if (typeof obj !== 'object' || obj === null) return;
   
   for (const key in obj) {
@@ -63,8 +68,10 @@ function replaceColors(obj, colors) {
           
           const [r, g, b, a] = value;
           
-          // Determine which color to replace based on original values
-          if (r > 0.9 && g > 0.9 && b > 0.4 && b < 0.7) {
+          // For thriving, map orangy colors to greenish
+          if (schemeName === 'thriving' && isOrangy(r, g, b)) {
+            obj[key] = [0.0, 0.85, 0.2, a]; // Strong green
+          } else if (r > 0.9 && g > 0.9 && b > 0.4 && b < 0.7) {
             // Yellow/warm colors -> use gradient1
             obj[key] = [...colors.gradient1];
             obj[key][3] = a; // Preserve original alpha
@@ -87,10 +94,10 @@ function replaceColors(obj, colors) {
           }
         } else {
           // Recursively process array elements
-          value.forEach(item => replaceColors(item, colors));
+          value.forEach(item => replaceColors(item, colors, schemeName));
         }
       } else if (typeof value === 'object') {
-        replaceColors(value, colors);
+        replaceColors(value, colors, schemeName);
       }
     }
   }
@@ -107,7 +114,7 @@ Object.keys(colorSchemes).forEach(schemeName => {
   animationVariant = removeSparkles(animationVariant);
   
   // Replace colors
-  replaceColors(animationVariant, colorSchemes[schemeName]);
+  replaceColors(animationVariant, colorSchemes[schemeName], schemeName);
   
   // Save the variant
   const filename = `./assets/Animation-${schemeName.charAt(0).toUpperCase() + schemeName.slice(1)}.json`;

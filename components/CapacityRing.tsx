@@ -29,7 +29,8 @@ interface CapacityRingProps {
 }
 
 export function CapacityRing({ size, progress, color, title, style, onPress }: CapacityRingProps) {
-  const strokeWidth = Math.max(6, size * 0.05); // Minimum 6px, scale with size
+  // Calculate stroke width based on size (2-3x thicker)
+  const strokeWidth = Math.max(15, size * 0.12); // Minimum 15px (was 6px), scale with size (was 0.05)
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   

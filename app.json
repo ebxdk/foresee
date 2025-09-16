@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "expo-on-replit",
-    "slug": "expo-on-replit",
+    "slug": "forecee",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/adaptive-icon.png",
@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.foresee"
+      "bundleIdentifier": "com.yourcompany.foresee",
+      "edgeToEdgeEnabled": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -35,10 +39,27 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "react-native-health",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a97c70bc-c60e-4535-ac32-28bf3c0b269a"
+      }
+    },
+    "owner": "ebxdk",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a97c70bc-c60e-4535-ac32-28bf3c0b269a"
     }
   }
 }

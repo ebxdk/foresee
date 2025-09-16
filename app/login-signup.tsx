@@ -11,19 +11,19 @@ export default function LoginSignupScreen() {
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/connect-apps');
+    router.push('/onboarding');
   };
 
   const handleGoogleLogin = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Handle Google login
-    router.push('/connect-apps');
+    router.push('/onboarding');
   };
 
   const handleAppleLogin = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Handle Apple login
-    router.push('/connect-apps');
+    router.push('/onboarding');
   };
 
   const toggleMode = () => {
@@ -103,7 +103,7 @@ export default function LoginSignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8F8FA', // Off-white background
   },
   logoSection: {
     marginTop: -10,
