@@ -16,10 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Import components and utilities
 import BurnoutGraphChart from '../components/BurnoutGraphChart';
+import { getAppleHealthDataOrMock } from '../utils/appleHealth';
 import { calculateBurnoutFromScores } from '../utils/burnoutCalc';
 import { getGreenToOrangeGradient } from '../utils/colorUtils';
 import { generateSmartForecast } from '../utils/forecastCalc';
-import { convertAppleHealthToEPCAdjustments, getMockAppleHealthData } from '../utils/mockAppleHealthData';
+import { convertAppleHealthToEPCAdjustments } from '../utils/mockAppleHealthData';
 import { getEPCScores, getRecentBurnoutLevels } from '../utils/storage';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -36,9 +37,11 @@ interface ForecastDay {
 // Add interface for graph data points
 interface BurnoutDataPoint {
   hour?: number;
+  minute?: number;
   day?: string;
   value: number;
   label: string;
+  hasData: boolean;
 }
 
 // Generate extended 10-day forecast
@@ -49,7 +52,7 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
       return generateMockForecast();
     }
 
-    const appleHealthData = await getMockAppleHealthData();
+    const appleHealthData = await getAppleHealthDataOrMock();
     const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
     
     const adjustedScores = {
@@ -117,30 +120,30 @@ const generateMockForecast = (): ForecastDay[] => {
 
 // Replace generateHourlyDataForSelectedDay with the exact same data as radar page
 const getRadarTodayGraphData = (): BurnoutDataPoint[] => [
-  { hour: 0, value: 15, label: '12a' },
-  { hour: 1, value: 12, label: '1a' },
-  { hour: 2, value: 10, label: '2a' },
-  { hour: 3, value: 8, label: '3a' },
-  { hour: 4, value: 12, label: '4a' },
-  { hour: 5, value: 18, label: '5a' },
-  { hour: 6, value: 25, label: '6a' },
-  { hour: 7, value: 35, label: '7a' },
-  { hour: 8, value: 45, label: '8a' },
-  { hour: 9, value: 52, label: '9a' },
-  { hour: 10, value: 58, label: '10a' },
-  { hour: 11, value: 65, label: '11a' },
-  { hour: 12, value: 62, label: '12p' },
-  { hour: 13, value: 55, label: '1p' },
-  { hour: 14, value: 68, label: '2p' },
-  { hour: 15, value: 75, label: '3p' },
-  { hour: 16, value: 72, label: '4p' },
-  { hour: 17, value: 65, label: '5p' },
-  { hour: 18, value: 58, label: '6p' },
-  { hour: 19, value: 45, label: '7p' },
-  { hour: 20, value: 35, label: '8p' },
-  { hour: 21, value: 28, label: '9p' },
-  { hour: 22, value: 22, label: '10p' },
-  { hour: 23, value: 18, label: '11p' }
+  { hour: 0, value: 15, label: '12a', hasData: true },
+  { hour: 1, value: 12, label: '1a', hasData: true },
+  { hour: 2, value: 10, label: '2a', hasData: true },
+  { hour: 3, value: 8, label: '3a', hasData: true },
+  { hour: 4, value: 12, label: '4a', hasData: true },
+  { hour: 5, value: 18, label: '5a', hasData: true },
+  { hour: 6, value: 25, label: '6a', hasData: true },
+  { hour: 7, value: 35, label: '7a', hasData: true },
+  { hour: 8, value: 45, label: '8a', hasData: true },
+  { hour: 9, value: 52, label: '9a', hasData: true },
+  { hour: 10, value: 58, label: '10a', hasData: true },
+  { hour: 11, value: 65, label: '11a', hasData: true },
+  { hour: 12, value: 62, label: '12p', hasData: true },
+  { hour: 13, value: 55, label: '1p', hasData: true },
+  { hour: 14, value: 68, label: '2p', hasData: true },
+  { hour: 15, value: 75, label: '3p', hasData: true },
+  { hour: 16, value: 72, label: '4p', hasData: true },
+  { hour: 17, value: 65, label: '5p', hasData: true },
+  { hour: 18, value: 58, label: '6p', hasData: true },
+  { hour: 19, value: 45, label: '7p', hasData: true },
+  { hour: 20, value: 35, label: '8p', hasData: true },
+  { hour: 21, value: 28, label: '9p', hasData: true },
+  { hour: 22, value: 22, label: '10p', hasData: true },
+  { hour: 23, value: 18, label: '11p', hasData: true }
 ];
 
 // Component for individual day content

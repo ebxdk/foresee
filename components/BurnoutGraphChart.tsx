@@ -22,11 +22,13 @@ interface BurnoutGraphChartProps {
   selectedPeriod: 'Today' | 'Week' | 'Month' | 'Year';
   onDataPointPress?: (index: number) => void;
   selectedIndex?: number;
+  currentOverride?: number; // Use to display current value (e.g., todayBurnout) reliably
 }
 
 const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
   data,
   selectedPeriod,
+  currentOverride,
 }) => {
   // Mobile-optimized chart dimensions for Expo Go iOS
   const chartWidth = screenWidth - (isIOS ? 16 : 8); // iOS-specific padding
@@ -585,8 +587,14 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>Current</Text>
-              <Text style={[styles.statusValue, { color: getBurnoutColor(currentData.filter(item => item.hasData).pop()?.value || 0) }]}>
-                {currentData.filter(item => item.hasData).pop()?.value || 0}%
+              <Text style={[styles.statusValue, { color: getBurnoutColor(
+                selectedPeriod === 'Today' && typeof currentOverride === 'number'
+                  ? currentOverride
+                  : (currentData.filter(item => item.hasData).pop()?.value || 0)
+              ) }]}>
+                {selectedPeriod === 'Today' && typeof currentOverride === 'number'
+                  ? currentOverride
+                  : (currentData.filter(item => item.hasData).pop()?.value || 0)}%
               </Text>
             </View>
             

@@ -7,11 +7,11 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 // Import components and utilities
 import EnhancedEPCDisplay from '../../components/EnhancedEPCDisplay';
+import { getAppleHealthDataOrMock } from '../../utils/appleHealth';
 import { getBackgroundDecayServiceStatus, startBackgroundDecayService } from '../../utils/backgroundDecayService';
 import { calculateBurnoutFromScores } from '../../utils/burnoutCalc';
 import { getGreenToOrangeGradient } from '../../utils/colorUtils';
 import { EPCScores } from '../../utils/epcScoreCalc';
-import { getMockAppleHealthData } from '../../utils/mockAppleHealthData';
 import { initializeMockSleepSystem } from '../../utils/mockSleepSystem';
 import { getDailyTasks, getEPCScores, getOnboardingAnswers, getUserState, shouldRegenerateTasks, storeEPCScores, updateTaskCompletion } from '../../utils/storage';
 
@@ -393,7 +393,7 @@ export default function HomeScreen() {
         return;
       }
 
-      const biometricData = await getMockAppleHealthData();
+      const biometricData = await getAppleHealthDataOrMock();
 
       const { calculateEPCScores } = await import('../../utils/epcScoreCalc');
       const newEPCScores = calculateEPCScores(onboardingAnswers, biometricData);

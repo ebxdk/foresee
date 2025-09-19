@@ -1,8 +1,9 @@
 // HealthKit Integration Utility
 // Fetches health data and applies adjustment rules to EPC scores
 
+import { getAppleHealthDataOrMock } from './appleHealth';
 import { EPCScores } from './epcScoreCalc';
-import { convertAppleHealthToEPCAdjustments, getMockAppleHealthData } from './mockAppleHealthData';
+import { convertAppleHealthToEPCAdjustments } from './mockAppleHealthData';
 import { applySleepQualityAdjustment, storeDailyActivity } from './storage';
 
 // Mock HealthKit data structure (replace with actual HealthKit integration)
@@ -315,8 +316,8 @@ export function applyHealthAdjustments(
  */
 export async function getAdjustedEPCScores(baseScores: EPCScores): Promise<EPCScores> {
   try {
-    // Get mock Apple Health data
-    const appleHealthData = await getMockAppleHealthData();
+    // Get Apple Health data (real on iOS with fallback to mock)
+    const appleHealthData = await getAppleHealthDataOrMock();
     
     // Apply sleep quality adjustments to energy level first
     const sleepAdjustedScores = await applySleepQualityAdjustment(

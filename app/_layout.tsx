@@ -2,9 +2,11 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import { registerDecayBackgroundFetch } from '../utils/backgroundTasks';
 import { QuestionnaireProvider } from '../utils/QuestionnaireContext';
 
 export default function RootLayout() {
@@ -12,6 +14,11 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+
+  useEffect(() => {
+    // Register background fetch task that runs decay/score tails
+    registerDecayBackgroundFetch();
+  }, []);
 
   if (!loaded) {
     // Async font loading only occurs in development.

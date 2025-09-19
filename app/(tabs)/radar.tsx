@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -10,11 +10,12 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import BurnoutForecastWidget from '../../components/BurnoutForecastWidget';
 import BurnoutGraphChart from '../../components/BurnoutGraphChart';
 import { getActionablesForWeakestPillar } from '../../utils/actionables';
+import { getAppleHealthDataOrMock } from '../../utils/appleHealth';
 import { calculateBurnoutFromScores } from '../../utils/burnoutCalc';
 import { getAppleWeatherGradientColor } from '../../utils/colorUtils';
 import { EPCScores } from '../../utils/epcScoreCalc';
 import { generateSmartForecast } from '../../utils/forecastCalc';
-import { convertAppleHealthToEPCAdjustments, getMockAppleHealthData } from '../../utils/mockAppleHealthData';
+import { convertAppleHealthToEPCAdjustments } from '../../utils/mockAppleHealthData';
 import * as Storage from '../../utils/storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -75,8 +76,8 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
       return generateMockForecast();
     }
 
-    // Get mock Apple Health data and apply adjustments
-    const appleHealthData = await getMockAppleHealthData();
+    // Get Apple Health data (real on iOS with fallback to mock) and apply adjustments
+    const appleHealthData = await getAppleHealthDataOrMock();
     const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
     
     // Apply health adjustments to EPC scores
@@ -259,6 +260,7 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
     console.log('DEBUG: All Minute Data for Today (optimized fetch):', allMinuteDataForToday);
 
     // Generate data points every minute for the entire day (1440 data points)
+    let lastKnownBurnout: number = currentBurnout; // Carry-forward to avoid dips to 0 when data missing
     for (let totalMinutes = 0; totalMinutes < 1440; totalMinutes += 1) {
       const hour = Math.floor(totalMinutes / 60);
       const minute = totalMinutes % 60;
@@ -278,20 +280,23 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
       if (totalMinutes === currentTotalMinutes) {
         // For the current minute, use real-time data
         burnoutValue = currentBurnout;
+        lastKnownBurnout = burnoutValue;
         console.log(`📊 Current minute ${hour}:${minute.toString().padStart(2, '0')} - Real-time: ${burnoutValue}%`);
       } else if (totalMinutes < currentTotalMinutes) {
         // For past minutes, try minute data first, then hourly fallback
         const storedMinuteData = allMinuteDataForToday[hour]?.[minute];
         if (storedMinuteData !== undefined) {
           burnoutValue = storedMinuteData;
+          lastKnownBurnout = burnoutValue;
         } else {
           // Fallback to hourly data for that hour if minute data isn't available
           const hourlyData = allHourlyData[hour];
           if (hourlyData !== undefined) {
             burnoutValue = hourlyData;
+            lastKnownBurnout = burnoutValue;
           } else {
-            // If no data found for a past minute, default to 0 to maintain continuity
-            burnoutValue = 0;
+            // If no data for a past minute, carry forward last known value to avoid zero dips
+            burnoutValue = lastKnownBurnout;
           }
         }
       } else {
@@ -302,7 +307,7 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
       data.push({
         hour,
         minute, // Ensure minute is included
-        value: burnoutValue || 0, // Use 0 for display if burnoutValue is null (for future)
+        value: burnoutValue === null ? 0 : burnoutValue, // 0 only for future
         label,
         hasData: burnoutValue !== null // hasData is false only for future minutes
       });
@@ -567,7 +572,7 @@ export default function RadarScreen() {
         console.log(`📊 Data stored for ${currentHour}:${currentMinute.toString().padStart(2, '0')} = ${burnoutPercentage}%`);
 
         // Apply Apple Health adjustments for display purposes only (not for burnout calculation)
-        const appleHealthData = await getMockAppleHealthData();
+        const appleHealthData = await getAppleHealthDataOrMock();
         const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
         
         const adjustedScores = {
@@ -616,9 +621,12 @@ export default function RadarScreen() {
         setGraphData(cachedData);
         // Set selected index immediately for cached data if applicable
         if (selectedPeriod === 'Today') {
-          const now = new Date();
-          const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
-          setSelectedDataIndex(currentTotalMinutes);
+          // Select the last minute that actually has data to avoid pointing at a future 0
+          let lastHasDataIndex = 0;
+          for (let i = cachedData.length - 1; i >= 0; i--) {
+            if (cachedData[i].hasData) { lastHasDataIndex = i; break; }
+          }
+          setSelectedDataIndex(lastHasDataIndex);
         } else if (selectedPeriod === 'Week') {
           setSelectedDataIndex(new Date().getDay());
         } else if (selectedPeriod === 'Month') {
@@ -628,9 +636,8 @@ export default function RadarScreen() {
         }
         console.log(`⚡ Instantly displaying cached data for ${selectedPeriod}`);
       } else {
-        // If no cached data, show a loading state or empty data while fetching
-        setGraphData([]); // Clear previous graph data
-        console.log(`⏳ No cached data for ${selectedPeriod}, displaying empty/loading and fetching...`);
+        // If no cached data yet, keep previous graphData to avoid flicker/zero dips while fetching fresh data
+        console.log(`⏳ No cached data for ${selectedPeriod}, keeping previous data while fetching...`);
       }
 
       // Always initiate a background fetch for fresh data
@@ -642,8 +649,11 @@ export default function RadarScreen() {
           switch (selectedPeriod) {
             case 'Today':
               fetchedData = await generateTodayMinuteData(todayBurnout);
-              const now = new Date();
-              newSelectedIndex = now.getHours() * 60 + now.getMinutes();
+              // Select the last minute that actually has data to avoid future 0
+              newSelectedIndex = 0;
+              for (let i = fetchedData.length - 1; i >= 0; i--) {
+                if (fetchedData[i].hasData) { newSelectedIndex = i; break; }
+              }
               break;
             case 'Week':
               fetchedData = await generateWeeklyData(todayBurnout);
@@ -671,7 +681,9 @@ export default function RadarScreen() {
             setSelectedDataIndex(newSelectedIndex); // Update selected index with fresh data
             console.log(`✅ Fetched and updated graph data for ${selectedPeriod}`);
           } else {
-            console.log(`ℹ️ Fresh data for ${selectedPeriod} is identical to cached, no re-render needed.`);
+            // Ensure the selected index reflects the current time even when data is identical
+            setSelectedDataIndex(newSelectedIndex);
+            console.log(`ℹ️ Fresh data for ${selectedPeriod} identical to cached. Updated selection index only.`);
           }
         } catch (backgroundError) {
           console.error(`Error loading graph data in background for ${selectedPeriod}:`, backgroundError);
@@ -890,6 +902,7 @@ export default function RadarScreen() {
                 data={graphData}
                 selectedPeriod={selectedPeriod}
                 selectedIndex={selectedDataIndex}
+                currentOverride={selectedPeriod === 'Today' ? todayBurnout : undefined}
                 onDataPointPress={handleDataPointPress}
               />
             </View>
