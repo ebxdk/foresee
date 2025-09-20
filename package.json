@@ -75,7 +75,8 @@
     "react-native-worklets": "^0.5.1",
     "react-native-worklets-core": "^1.6.2",
     "uuid": "^13.0.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
