@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
 import { SafeAreaView, StatusBar } from 'react-native';
 
 import VerificationCodeScreen from '../components/VerificationCodeScreen';
@@ -9,7 +8,7 @@ export default function VerificationCodePage() {
 
   const handleCodeContinue = (code: string) => {
     console.log('Code continue with:', code);
-    router.push('/question-1');
+    router.push('/password-setup');
   };
 
   const handleBackFromCode = () => {

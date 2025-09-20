@@ -58,6 +58,14 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen 
+              name="password-setup" 
+              options={{
+                headerShown: false,
+                gestureEnabled: true,
+                gestureDirection: 'horizontal',
+              }}
+            />
+            <Stack.Screen 
               name="question-1" 
               options={{
                 headerShown: false,
