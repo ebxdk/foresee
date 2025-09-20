@@ -23,7 +23,7 @@ app.use(helmet({
 // CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['exp://192.168.1.100:8081'] // Replace with your production domains
+    ? (process.env.CORS_ORIGINS?.split(',') || ['https://your-domain.com']) // Set production origins via environment
     : true, // Allow all origins in development
   credentials: true
 }));

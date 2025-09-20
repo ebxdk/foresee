@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Alert, SafeAreaView, StatusBar } from 'react-native';
 
 import PasswordSetupScreen from '../components/PasswordSetupScreen';
-import { AuthService, type SignupData } from '../services/AuthService';
+import { ApiService, type SignupData } from '../services/ApiService';
 
 export default function PasswordSetupPage() {
   const router = useRouter();
@@ -39,12 +39,11 @@ export default function PasswordSetupPage() {
         password: password,
       };
 
-      const result = await AuthService.createUser(newUserData);
+      const result = await ApiService.signup(newUserData);
       
       if (result.success) {
-        // Store user session and data
-        if (result.sessionToken && result.user) {
-          await AsyncStorage.setItem('user_session', result.sessionToken);
+        // Token is automatically stored by ApiService
+        if (result.user) {
           await AsyncStorage.setItem('current_user', JSON.stringify(result.user));
         }
         

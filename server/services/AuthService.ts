@@ -52,12 +52,13 @@ export class AuthService {
 
       const sanitizedEmail = ValidationService.sanitizeEmail(email);
 
-      // Check if email already exists
+      // Check if email already exists (but don't reveal this to prevent enumeration)
       const emailExists = await this.checkEmailExists(sanitizedEmail);
       if (emailExists) {
+        // Return success to prevent account enumeration, but don't actually send email
         return { 
-          success: false, 
-          message: 'This email is already registered. Try logging in instead.' 
+          success: true, 
+          message: 'Verification code sent to your email!' 
         };
       }
 
@@ -199,6 +200,37 @@ export class AuthService {
         return { 
           success: false, 
           message: 'This email is already registered.' 
+        };
+      }
+
+      // SECURITY: Verify that email was actually verified recently before allowing signup
+      const recentVerificationRecord = await db.select()
+        .from(verificationCodes)
+        .where(
+          and(
+            eq(verificationCodes.email, sanitizedEmail),
+            eq(verificationCodes.used, true),
+            eq(verificationCodes.type, 'email_verification')
+          )
+        )
+        .limit(1);
+
+      if (recentVerificationRecord.length === 0) {
+        return { 
+          success: false, 
+          message: 'Email must be verified before creating account. Please complete email verification first.' 
+        };
+      }
+
+      // Check if verification is still recent (within 60 minutes)
+      const record = recentVerificationRecord[0];
+      const verificationAge = Date.now() - record.createdAt.getTime();
+      const maxVerificationAge = 60 * 60 * 1000; // 60 minutes
+
+      if (verificationAge > maxVerificationAge) {
+        return { 
+          success: false, 
+          message: 'Email verification has expired. Please verify your email again.' 
         };
       }
 

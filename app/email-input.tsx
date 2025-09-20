@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Alert, SafeAreaView, StatusBar } from 'react-native';
 
 import EmailInputScreen from '../components/EmailInputScreen';
-import { AuthService } from '../services/AuthService';
+import { ApiService } from '../services/ApiService';
 
 export default function EmailInputPage() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function EmailInputPage() {
       const userData = signupData ? JSON.parse(signupData) : {};
       
       // Generate and send verification code
-      const result = await AuthService.generateVerificationCode(email, userData.name);
+      const result = await ApiService.sendVerificationCode(email, userData.name);
       
       if (result.success) {
         // Store email with signup data

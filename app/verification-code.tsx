@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Alert, SafeAreaView, StatusBar } from 'react-native';
 
 import VerificationCodeScreen from '../components/VerificationCodeScreen';
-import { AuthService } from '../services/AuthService';
+import { ApiService } from '../services/ApiService';
 
 export default function VerificationCodePage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function VerificationCodePage() {
       }
 
       // Validate verification code
-      const result = await AuthService.validateVerificationCode(userData.email, code);
+      const result = await ApiService.verifyCode(userData.email, code);
       
       if (result.success) {
         // Mark verification as complete
@@ -70,7 +70,7 @@ export default function VerificationCodePage() {
         return;
       }
 
-      const result = await AuthService.generateVerificationCode(userData.email, userData.name);
+      const result = await ApiService.sendVerificationCode(userData.email, userData.name);
       if (result.success) {
         Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
       } else {
