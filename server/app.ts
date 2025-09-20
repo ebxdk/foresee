@@ -11,6 +11,9 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.API_PORT || '3001', 10);
 
+// Configure trust proxy for rate limiting in Replit environment
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Disable for development

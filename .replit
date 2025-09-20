@@ -6,11 +6,7 @@ channel = "stable-24_05"
 
 [[ports]]
 localPort = 3001
-externalPort = 3003
-
-[[ports]]
-localPort = 5000
-externalPort = 5000
+externalPort = 3001
 
 [[ports]]
 localPort = 5001
@@ -76,6 +72,10 @@ author = "agent"
 task = "workflow.run"
 args = "Expo Dev Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Auth API Server"
+
 [[workflows.workflow]]
 name = "Expo Dev Server"
 author = "agent"
@@ -87,6 +87,18 @@ outputType = "webview"
 task = "shell.exec"
 args = "NODE_OPTIONS=\"--max-old-space-size=4096\" npx expo start --port 5000 --max-workers=1 --web --clear"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Auth API Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bun run server"
+waitForPort = 3001
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 expertMode = true
