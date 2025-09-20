@@ -37,17 +37,11 @@ export class ApiService {
       baseUrl = `https://${replitDomain}:3001`;
       console.log('🔗 Replit environment detected for physical device');
     } else if (Platform.OS === 'ios' && !Platform.isPad) {
-      // Physical iPhone - needs computer's local IP address
-      // Set EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_IP:3001 for physical devices
-      const localIP = process.env.EXPO_PUBLIC_LOCAL_IP;
-      if (localIP) {
-        baseUrl = `http://${localIP}:3001`;
-        console.log('📱 Physical iPhone - using local IP:', localIP);
-      } else {
-        baseUrl = 'http://127.0.0.1:3001'; // This won't work for physical devices
-        console.warn('⚠️  Physical iPhone detected but no EXPO_PUBLIC_LOCAL_IP set!');
-        console.warn('⚠️  Set EXPO_PUBLIC_LOCAL_IP=YOUR_COMPUTER_IP in .env file');
-      }
+      // Physical iPhone - connecting to Replit workspace (via Cursor SSH)
+      const replitDomain = 'a987b2a1-17fd-4a79-9fb2-3bb3f204ffaf-00-1gm2gpt9m0dlh.spock.replit.dev';
+      baseUrl = `https://${replitDomain}:3001`;
+      console.log('📱 Physical iPhone - using Replit domain for API server');
+      console.log('🔗 Cursor is connected via SSH to Replit workspace');
     } else if (Platform.OS === 'ios') {
       // iOS Simulator uses 127.0.0.1 instead of localhost
       baseUrl = 'http://127.0.0.1:3001';
