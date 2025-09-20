@@ -6,9 +6,10 @@ import { Path, Svg } from 'react-native-svg';
 interface EmailInputScreenProps {
   onContinue: (email: string) => void;
   onBack: () => void;
+  isLoading?: boolean;
 }
 
-const EmailInputScreen: React.FC<EmailInputScreenProps> = ({ onContinue, onBack }) => {
+const EmailInputScreen: React.FC<EmailInputScreenProps> = ({ onContinue, onBack, isLoading = false }) => {
   const [email, setEmail] = React.useState('');
   const inputRef = useRef<TextInput>(null);
 
@@ -114,11 +115,13 @@ const EmailInputScreen: React.FC<EmailInputScreenProps> = ({ onContinue, onBack 
             {/* Bottom Section with Next Button */}
             <View style={styles.bottomSection}>
               <TouchableOpacity
-                style={[styles.nextButton, !email.trim() && styles.nextButtonDisabled]}
+                style={[styles.nextButton, (!email.trim() || isLoading) && styles.nextButtonDisabled]}
                 onPress={handleNext}
-                disabled={!email.trim()}
+                disabled={!email.trim() || isLoading}
               >
-                <Text style={styles.nextButtonText}>Next</Text>
+                <Text style={styles.nextButtonText}>
+                  {isLoading ? 'Sending verification code...' : 'Next'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

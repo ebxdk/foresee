@@ -1,15 +1,43 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { SafeAreaView, StatusBar } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, SafeAreaView, StatusBar } from 'react-native';
 
 import EmailInputScreen from '../components/EmailInputScreen';
+import { AuthService } from '../services/AuthService';
 
 export default function EmailInputPage() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleEmailContinue = (email: string) => {
+  const handleEmailContinue = async (email: string) => {
     console.log('Email continue with:', email);
-    router.push('/verification-code');
+    setIsLoading(true);
+
+    try {
+      // Get the stored name from previous screen
+      const signupData = await AsyncStorage.getItem('auth_signup_data');
+      const userData = signupData ? JSON.parse(signupData) : {};
+      
+      // Generate and send verification code
+      const result = await AuthService.generateVerificationCode(email, userData.name);
+      
+      if (result.success) {
+        // Store email with signup data
+        const updatedData = { ...userData, email };
+        await AsyncStorage.setItem('auth_signup_data', JSON.stringify(updatedData));
+        
+        // Navigate to verification screen
+        router.push('/verification-code');
+      } else {
+        Alert.alert('Error', result.message);
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBackFromEmail = () => {
@@ -20,7 +48,11 @@ export default function EmailInputPage() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <EmailInputScreen onContinue={handleEmailContinue} onBack={handleBackFromEmail} />
+      <EmailInputScreen 
+        onContinue={handleEmailContinue} 
+        onBack={handleBackFromEmail}
+        isLoading={isLoading}
+      />
     </SafeAreaView>
   );
 } 

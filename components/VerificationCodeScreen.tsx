@@ -6,11 +6,14 @@ import { Path, Svg } from 'react-native-svg';
 interface VerificationCodeScreenProps {
   onContinue: (code: string) => void;
   onBack: () => void;
+  onResendCode?: () => void;
+  isLoading?: boolean;
 }
 
-const VerificationCodeScreen: React.FC<VerificationCodeScreenProps> = ({ onContinue, onBack }) => {
+const VerificationCodeScreen: React.FC<VerificationCodeScreenProps> = ({ onContinue, onBack, onResendCode, isLoading: externalLoading = false }) => {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const loading = externalLoading || isLoading;
   const [showCheckmark, setShowCheckmark] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;

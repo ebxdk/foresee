@@ -27,7 +27,11 @@ const STORAGE_KEYS = {
   ENERGY_BUFFER: 'energy_buffer', // Key for energy buffer storage
   SCORE_TAILS: 'score_tails', // Key for score tails storage
   HOURLY_BURNOUT: 'hourly_burnout', // Key for hourly burnout data
-  MINUTE_BURNOUT: 'minute_burnout' // Key for minute-level burnout data
+  MINUTE_BURNOUT: 'minute_burnout', // Key for minute-level burnout data
+  // Auth storage keys
+  AUTH_SIGNUP_DATA: 'auth_signup_data', // Temporary signup data during flow
+  USER_SESSION: 'user_session', // User session token
+  CURRENT_USER: 'current_user' // Current user data
 } as const;
 
 // Activity-based decay multipliers based on step ranges

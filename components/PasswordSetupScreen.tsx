@@ -7,9 +7,10 @@ import { Path, Svg } from 'react-native-svg';
 interface PasswordSetupScreenProps {
   onContinue: (password: string) => void;
   onBack: () => void;
+  isLoading?: boolean;
 }
 
-const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({ onContinue, onBack }) => {
+const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({ onContinue, onBack, isLoading = false }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
