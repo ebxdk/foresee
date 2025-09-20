@@ -34,13 +34,13 @@ export class ApiService {
     if (isReplit && Platform.OS !== 'web') {
       // Physical device connecting to Replit workspace
       const replitDomain = process.env.REPLIT_DEV_DOMAIN || 'a987b2a1-17fd-4a79-9fb2-3bb3f204ffaf-00-1gm2gpt9m0dlh.spock.replit.dev';
-      baseUrl = `https://${replitDomain}:3001`;
+      baseUrl = `https://${replitDomain}:8080`;
       console.log('🔗 Replit environment detected for physical device');
     } else if (Platform.OS === 'ios' && !Platform.isPad) {
       // Physical iPhone - connecting to Replit workspace (via Cursor SSH)
       const replitDomain = 'a987b2a1-17fd-4a79-9fb2-3bb3f204ffaf-00-1gm2gpt9m0dlh.spock.replit.dev';
-      baseUrl = `https://${replitDomain}:3001`;
-      console.log('📱 Physical iPhone - using Replit domain for API server');
+      baseUrl = `https://${replitDomain}:8080`;
+      console.log('📱 Physical iPhone - using Replit domain for API server on port 8080');
       console.log('🔗 Cursor is connected via SSH to Replit workspace');
     } else if (Platform.OS === 'ios') {
       // iOS Simulator uses 127.0.0.1 instead of localhost

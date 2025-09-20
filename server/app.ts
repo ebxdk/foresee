@@ -9,7 +9,7 @@ import authRoutes from './routes/auth';
 dotenv.config();
 
 const app = express();
-const PORT = parseInt(process.env.API_PORT || '3001', 10);
+const PORT = parseInt(process.env.API_PORT || '8080', 10);
 
 // Configure trust proxy for rate limiting in Replit environment
 app.set('trust proxy', 1);

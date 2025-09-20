@@ -17,6 +17,10 @@ localPort = 5001
 externalPort = 3001
 
 [[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
 localPort = 8081
 externalPort = 80
 
@@ -96,13 +100,13 @@ waitForPort = 5000
 name = "Auth API Server"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "bun run server"
-waitForPort = 3001
-
-[workflows.workflow.metadata]
-outputType = "console"
+waitForPort = 8080
 
 [agent]
 expertMode = true
