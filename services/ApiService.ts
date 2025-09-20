@@ -16,13 +16,31 @@ export interface SignupData {
 
 export class ApiService {
   private static readonly API_BASE_URL = (() => {
-    // Get API URL from environment or use current Replit domain
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.API_URL;
-    if (apiUrl) return `${apiUrl}/api`;
+    // Get API URL from environment variable
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (apiUrl) {
+      console.log('Using environment API URL:', apiUrl);
+      return `${apiUrl}/api`;
+    }
     
-    // Fallback to current Replit domain (development)
-    const replitDomain = process.env.REPLIT_DEV_DOMAIN || 'localhost:3001';
-    return `https://${replitDomain}/api`;
+    // Platform-specific URLs for development
+    const Platform = require('react-native').Platform;
+    let baseUrl: string;
+    
+    if (Platform.OS === 'ios') {
+      // iOS Simulator uses 127.0.0.1 instead of localhost
+      baseUrl = 'http://127.0.0.1:3001';
+    } else if (Platform.OS === 'android') {
+      // Android emulator uses 10.0.2.2 to access host machine
+      baseUrl = 'http://10.0.2.2:3001';
+    } else {
+      // Web or other platforms (fallback)
+      baseUrl = 'http://localhost:3001';
+    }
+    
+    const fullUrl = `${baseUrl}/api`;
+    console.log(`Platform: ${Platform.OS}, Using API URL: ${fullUrl}`);
+    return fullUrl;
   })();
 
   private static readonly TOKEN_KEY = 'auth_token';
@@ -36,6 +54,9 @@ export class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const token = await AsyncStorage.getItem(this.TOKEN_KEY);
+      const fullUrl = `${this.API_BASE_URL}${endpoint}`;
+      
+      console.log('Making API request to:', fullUrl);
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -46,20 +67,24 @@ export class ApiService {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${this.API_BASE_URL}${endpoint}`, {
+      const response = await fetch(fullUrl, {
         ...options,
         headers,
       });
 
+      console.log('API response status:', response.status, response.statusText);
+
       const data = await response.json();
 
       if (!response.ok) {
+        console.error('API error response:', data);
         return {
           success: false,
           message: data.message || `HTTP ${response.status}: ${response.statusText}`,
         };
       }
 
+      console.log('API success response:', data);
       return data;
     } catch (error) {
       console.error('API request error:', error);
@@ -168,5 +193,44 @@ export class ApiService {
    */
   static async clearAuth(): Promise<void> {
     await AsyncStorage.removeItem(this.TOKEN_KEY);
+  }
+
+  /**
+   * Health check - verify API server is reachable
+   */
+  static async healthCheck(): Promise<ApiResponse> {
+    try {
+      const healthUrl = this.API_BASE_URL.replace('/api', '/health');
+      console.log('Checking health endpoint:', healthUrl);
+      
+      const response = await fetch(healthUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: `Health check failed: ${response.status} ${response.statusText}`,
+        };
+      }
+
+      const data = await response.json();
+      console.log('Health check successful:', data);
+      
+      return {
+        success: true,
+        message: 'API server is healthy',
+        ...data
+      };
+    } catch (error) {
+      console.error('Health check error:', error);
+      return {
+        success: false,
+        message: 'Health check failed - server may be unreachable',
+      };
+    }
   }
 }
