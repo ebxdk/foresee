@@ -9,10 +9,6 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 8081
-externalPort = 80
-
-[[ports]]
 localPort = 8082
 externalPort = 3000
 
@@ -77,8 +73,9 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_OPTIONS=\"--max-old-space-size=4096\" npx expo start --port 5000 --max-workers=2 --web"
+args = "NODE_OPTIONS=\"--max-old-space-size=4096\" npx expo start --port 5000 --max-workers=1 --web --clear"
 waitForPort = 5000
 
 [agent]
 expertMode = true
+integrations = ["javascript_database:1.0.0"]
