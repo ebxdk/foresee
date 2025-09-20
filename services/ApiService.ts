@@ -27,7 +27,16 @@ export class ApiService {
     const Platform = require('react-native').Platform;
     let baseUrl: string;
     
-    if (Platform.OS === 'ios') {
+    // Check if we're in Replit environment (for physical devices)
+    const isReplit = process.env.REPLIT_DEV_DOMAIN || 
+                    (typeof window !== 'undefined' && window.location?.hostname?.includes('replit'));
+    
+    if (isReplit && Platform.OS !== 'web') {
+      // Physical device connecting to Replit workspace
+      const replitDomain = process.env.REPLIT_DEV_DOMAIN || 'a987b2a1-17fd-4a79-9fb2-3bb3f204ffaf-00-1gm2gpt9m0dlh.spock.replit.dev';
+      baseUrl = `https://${replitDomain}:3001`;
+      console.log('🔗 Replit environment detected for physical device');
+    } else if (Platform.OS === 'ios') {
       // iOS Simulator uses 127.0.0.1 instead of localhost
       baseUrl = 'http://127.0.0.1:3001';
     } else if (Platform.OS === 'android') {
@@ -39,7 +48,7 @@ export class ApiService {
     }
     
     const fullUrl = `${baseUrl}/api`;
-    console.log(`Platform: ${Platform.OS}, Using API URL: ${fullUrl}`);
+    console.log(`Platform: ${Platform.OS}, Replit: ${isReplit}, Using API URL: ${fullUrl}`);
     return fullUrl;
   })();
 
