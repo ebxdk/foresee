@@ -482,7 +482,7 @@ export default function HomeScreen() {
           >
             <LinearGradient
               colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
-              style={{ flex: 1, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }}
+              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}
             >
               <Text style={styles.profileInitials}>EK</Text>
             </LinearGradient>
