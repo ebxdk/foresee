@@ -10,26 +10,10 @@ externalPort = 3003
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 5001
-externalPort = 3001
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
 externalPort = 80
 
 [[ports]]
-localPort = 8082
-externalPort = 3000
-
-[[ports]]
-localPort = 36845
+localPort = 43637
 externalPort = 3002
 
 [workflows]
@@ -97,7 +81,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_OPTIONS=\"--max-old-space-size=4096\" npx expo start --port 5000 --max-workers=1 --web --clear"
+args = "CI=1 WATCHMAN_DISABLE_WATCH=1 NODE_OPTIONS=\"--max-old-space-size=4096\" npx expo start --port 5000 --web --no-dev"
 waitForPort = 5000
 
 [[workflows.workflow]]

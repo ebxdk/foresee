@@ -1,7 +1,9 @@
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EPCScores } from '../utils/epcScoreCalc';
 import { getEnergyBuffer, getScoreTails } from '../utils/storage';
+import EPCExplanationModal from './EPCExplanationModal';
 
 interface EnhancedEPCDisplayProps {
   scores: EPCScores;
@@ -26,6 +28,7 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
   });
 
   const [pulseAnimation] = useState(new Animated.Value(1));
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Fetch effect status every minute
   useEffect(() => {
@@ -98,6 +101,15 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
     return minutes > 0 ? `${wholeHours}h ${minutes}m` : `${wholeHours}h`;
   };
 
+  const handleEPCPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+  };
+
   const getBarColor = (label: string) => {
     switch (label) {
       case 'Energy': return '#FF6B6B';
@@ -149,18 +161,24 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
   };
 
   return (
-    <Animated.View style={[styles.container, { transform: [{ scale: pulseAnimation }] }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>EPC Scores</Text>
-        {(effectStatus.bufferActive || effectStatus.tailsActive > 0) && (
-          <View style={styles.activeEffectsIndicator}>
-            <Text style={styles.activeEffectsText}>
-              {effectStatus.bufferActive && effectStatus.tailsActive > 0 ? '🛡️🌊' : 
-               effectStatus.bufferActive ? '🛡️' : '🌊'}
-            </Text>
+    <>
+      <TouchableOpacity 
+        style={styles.touchableContainer}
+        onPress={handleEPCPress}
+        activeOpacity={0.95}
+      >
+        <Animated.View style={[styles.container, { transform: [{ scale: pulseAnimation }] }]}>
+          <View style={styles.header}>
+            <Text style={styles.title}>EPC Scores</Text>
+            {(effectStatus.bufferActive || effectStatus.tailsActive > 0) && (
+              <View style={styles.activeEffectsIndicator}>
+                <Text style={styles.activeEffectsText}>
+                  {effectStatus.bufferActive && effectStatus.tailsActive > 0 ? '🛡️🌊' : 
+                   effectStatus.bufferActive ? '🛡️' : '🌊'}
+                </Text>
+              </View>
+            )}
           </View>
-        )}
-      </View>
 
       <View style={styles.scoresContainer}>
         {renderScoreBar('Energy', scores.energy, 'energy')}
@@ -196,17 +214,26 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
           )}
         </View>
       )}
-    </Animated.View>
+        </Animated.View>
+      </TouchableOpacity>
+
+      <EPCExplanationModal 
+        visible={modalVisible} 
+        onClose={handleModalClose} 
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  touchableContainer: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
   container: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
-    marginHorizontal: 16,
-    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
