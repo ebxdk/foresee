@@ -106,6 +106,16 @@ export class ApiService {
 
       if (!response.ok) {
         console.error('API error response:', data);
+        
+        // Handle authentication failures
+        if (response.status === 401) {
+          await this.clearAuth();
+          return {
+            success: false,
+            message: 'Your session has expired. Please log in again.',
+          };
+        }
+        
         return {
           success: false,
           message: data.message || `HTTP ${response.status}: ${response.statusText}`,
@@ -214,6 +224,16 @@ export class ApiService {
 
     const response = await this.getCurrentUser();
     return response.success;
+  }
+
+  /**
+   * Update user profile
+   */
+  static async updateUserProfile(name: string): Promise<ApiResponse> {
+    return this.makeRequest('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
   }
 
   /**

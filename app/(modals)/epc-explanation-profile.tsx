@@ -55,16 +55,25 @@ export default function SettingsProfile() {
 
     setIsSavingName(true);
     try {
-      // TODO: Add API call to update user name on server
-      // For now, just update local storage
-      const updatedUser = { ...userProfile, name: editedName.trim() };
-      await AsyncStorage.setItem('current_user', JSON.stringify(updatedUser));
-      setUserProfile(updatedUser);
-      setIsEditingName(false);
-      Alert.alert('Success', 'Name updated successfully!');
+      // Update name on server
+      const response = await ApiService.updateUserProfile(editedName.trim());
+      
+      if (response.success) {
+        // Update local user profile with server response
+        const updatedUser = { ...userProfile, name: response.user?.name || editedName.trim() };
+        setUserProfile(updatedUser);
+        
+        // Also update AsyncStorage for offline access
+        await AsyncStorage.setItem('current_user', JSON.stringify(updatedUser));
+        
+        setIsEditingName(false);
+        Alert.alert('Success', 'Name updated successfully!');
+      } else {
+        Alert.alert('Error', response.message || 'Failed to update name. Please try again.');
+      }
     } catch (error) {
       console.error('Error saving name:', error);
-      Alert.alert('Error', 'Failed to update name. Please try again.');
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
     } finally {
       setIsSavingName(false);
     }

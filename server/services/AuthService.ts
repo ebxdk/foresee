@@ -8,10 +8,20 @@ import { TokenService } from './TokenService';
 
 const { users, verificationCodes } = schema;
 
+// Sanitized user type without sensitive fields
+export interface SafeUser {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AuthResult {
   success: boolean;
   message: string;
-  user?: User;
+  user?: SafeUser;
   token?: string;
 }
 
@@ -24,6 +34,20 @@ export interface SignupData {
 export class AuthService {
   private static readonly SALT_ROUNDS = 12;
   private static readonly CODE_EXPIRY_MINUTES = 15;
+
+  /**
+   * Sanitize user object by removing sensitive fields
+   */
+  private static sanitizeUser(user: User): SafeUser {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
 
   /**
    * Check if email already exists in database
@@ -266,7 +290,7 @@ export class AuthService {
       return {
         success: true,
         message: 'Account created successfully!',
-        user,
+        user: this.sanitizeUser(user),
         token: tokenResult.token,
       };
     } catch (error) {
@@ -323,7 +347,7 @@ export class AuthService {
       return {
         success: true,
         message: 'Login successful',
-        user,
+        user: this.sanitizeUser(user),
         token: tokenResult.token,
       };
     } catch (error) {
@@ -361,7 +385,7 @@ export class AuthService {
       return {
         success: true,
         message: 'Token is valid',
-        user: userRecord[0],
+        user: this.sanitizeUser(userRecord[0]),
         token,
       };
     } catch (error) {
@@ -369,6 +393,59 @@ export class AuthService {
       return { 
         success: false, 
         message: 'Token validation failed' 
+      };
+    }
+  }
+
+  /**
+   * Update user profile information
+   */
+  static async updateUserProfile(userId: string, updates: { name?: string }): Promise<AuthResult> {
+    try {
+      if (!updates.name) {
+        return { 
+          success: false, 
+          message: 'No valid updates provided' 
+        };
+      }
+
+      // Validate name
+      const nameValidation = ValidationService.validateName(updates.name);
+      if (!nameValidation.isValid) {
+        return { success: false, message: nameValidation.error! };
+      }
+
+      const sanitizedName = ValidationService.sanitizeName(updates.name);
+
+      // Update user in database
+      const updatedUsers = await db
+        .update(users)
+        .set({ 
+          name: sanitizedName,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      if (updatedUsers.length === 0) {
+        return { 
+          success: false, 
+          message: 'User not found or update failed' 
+        };
+      }
+
+      const updatedUser = updatedUsers[0];
+
+      return {
+        success: true,
+        message: 'Profile updated successfully',
+        user: this.sanitizeUser(updatedUser),
+      };
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      return { 
+        success: false, 
+        message: 'Failed to update profile. Please try again.' 
       };
     }
   }

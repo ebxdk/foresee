@@ -199,6 +199,32 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 });
 
+// PUT /api/auth/profile - Update user profile
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required'
+      });
+    }
+
+    const result = await AuthService.updateUserProfile(user.id, { name });
+    
+    const statusCode = result.success ? 200 : 400;
+    res.status(statusCode).json(result);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // POST /api/auth/logout - Logout user (clear cookie)
 router.post('/logout', (req, res) => {
   try {
