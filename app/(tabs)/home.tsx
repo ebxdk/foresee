@@ -456,17 +456,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Enhanced EPC Display */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            if (epcScores) {
-              router.push({ pathname: '/(modals)/epc-explanation-modal', params: { scores: JSON.stringify(epcScores) } });
-            }
-          }}
-        >
-          <EnhancedEPCDisplay scores={epcScores} />
-        </TouchableOpacity>
+        <EnhancedEPCDisplay scores={epcScores} />
 
         {/* Retake Assessment Card */}
         <TouchableOpacity style={styles.retakeCardContainer} onPress={handleRetakeAssessment} activeOpacity={0.8}>
