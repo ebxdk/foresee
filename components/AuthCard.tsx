@@ -84,7 +84,7 @@ export default function AuthCard({ visible, onClose, onSignupClick }: AuthCardPr
 
   const handleLogin = () => {
     onClose();
-    router.push('/onboarding');
+    router.push('/login');
   };
 
   const handleSignup = () => {
