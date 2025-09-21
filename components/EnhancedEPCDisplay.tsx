@@ -180,40 +180,40 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
             )}
           </View>
 
-      <View style={styles.scoresContainer}>
-        {renderScoreBar('Energy', scores.energy, 'energy')}
-        {renderScoreBar('Purpose', scores.purpose, 'purpose')}
-        {renderScoreBar('Connection', scores.connection, 'connection')}
-      </View>
+          <View style={styles.scoresContainer}>
+            {renderScoreBar('Energy', scores.energy, 'energy')}
+            {renderScoreBar('Purpose', scores.purpose, 'purpose')}
+            {renderScoreBar('Connection', scores.connection, 'connection')}
+          </View>
 
-      {/* Effects Status */}
-      {(effectStatus.bufferActive || effectStatus.tailsActive > 0) && (
-        <View style={styles.effectsStatus}>
-          {effectStatus.bufferActive && (
-            <View style={styles.effectItem}>
-              <Text style={styles.effectIcon}>🛡️</Text>
-              <Text style={styles.effectText}>
-                Energy decay slowed by {((1 - effectStatus.bufferMultiplier) * 100).toFixed(0)}%
-              </Text>
-              <Text style={styles.effectTime}>
-                {formatTimeRemaining(effectStatus.bufferTimeRemaining)} remaining
-              </Text>
+          {/* Effects Status */}
+          {(effectStatus.bufferActive || effectStatus.tailsActive > 0) && (
+            <View style={styles.effectsStatus}>
+              {effectStatus.bufferActive && (
+                <View style={styles.effectItem}>
+                  <Text style={styles.effectIcon}>🛡️</Text>
+                  <Text style={styles.effectText}>
+                    Energy decay slowed by {((1 - effectStatus.bufferMultiplier) * 100).toFixed(0)}%
+                  </Text>
+                  <Text style={styles.effectTime}>
+                    {formatTimeRemaining(effectStatus.bufferTimeRemaining)} remaining
+                  </Text>
+                </View>
+              )}
+              
+              {effectStatus.tailsActive > 0 && (
+                <View style={styles.effectItem}>
+                  <Text style={styles.effectIcon}>🌊</Text>
+                  <Text style={styles.effectText}>
+                    {effectStatus.tailsActive} active score tail{effectStatus.tailsActive > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.effectTime}>
+                    +{effectStatus.tailEffects.P}P +{effectStatus.tailEffects.C}C active
+                  </Text>
+                </View>
+              )}
             </View>
           )}
-          
-          {effectStatus.tailsActive > 0 && (
-            <View style={styles.effectItem}>
-              <Text style={styles.effectIcon}>🌊</Text>
-              <Text style={styles.effectText}>
-                {effectStatus.tailsActive} active score tail{effectStatus.tailsActive > 1 ? 's' : ''}
-              </Text>
-              <Text style={styles.effectTime}>
-                +{effectStatus.tailEffects.P}P +{effectStatus.tailEffects.C}C active
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
         </Animated.View>
       </TouchableOpacity>
 

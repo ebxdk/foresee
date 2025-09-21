@@ -44,13 +44,13 @@ export class ApiService {
       console.log('🔗 Cursor is connected via SSH to Replit workspace');
     } else if (Platform.OS === 'ios') {
       // iOS Simulator uses 127.0.0.1 instead of localhost
-      baseUrl = 'http://127.0.0.1:3001';
+      baseUrl = 'http://127.0.0.1:8080';
     } else if (Platform.OS === 'android') {
       // Android emulator uses 10.0.2.2 to access host machine
-      baseUrl = 'http://10.0.2.2:3001';
+      baseUrl = 'http://10.0.2.2:8080';
     } else {
-      // Web or other platforms (fallback)
-      baseUrl = 'http://localhost:3001';
+      // Web or other platforms (fallback) - match server port
+      baseUrl = 'http://localhost:8080';
     }
     
     const fullUrl = `${baseUrl}/api`;
@@ -89,7 +89,20 @@ export class ApiService {
 
       console.log('API response status:', response.status, response.statusText);
 
-      const data = await response.json();
+      // Check if response is JSON before parsing
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // If not JSON (like HTML error page), get text for better error info
+        const responseText = await response.text();
+        console.error('Non-JSON response received:', responseText.substring(0, 200));
+        return {
+          success: false,
+          message: `Server error (${response.status}): Received HTML instead of JSON. Check if server is running properly.`,
+        };
+      }
 
       if (!response.ok) {
         console.error('API error response:', data);
