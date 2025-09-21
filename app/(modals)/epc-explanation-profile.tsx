@@ -1,24 +1,81 @@
-import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { EPCScores } from '../../utils/epcScoreCalc'; // Adjusted path
+import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert } from 'react-native';
+import { ApiService } from '../../services/ApiService';
 
-const getBarColor = (label: string) => {
-  switch (label) {
-    case 'Energy': return '#FF6B6B';
-    case 'Purpose': return '#4ECDC4';
-    case 'Connection': return '#45B7D1';
-    default: return '#8E8E93';
-  }
-};
+interface UserProfile {
+  id?: string;
+  name?: string;
+  email?: string;
+  emailVerified?: boolean;
+}
 
-export default function EPCExplanationProfile() {
+export default function SettingsProfile() {
   const router = useRouter();
-  const { scores: scoresParam } = useLocalSearchParams();
-  const scores: EPCScores = JSON.parse(scoresParam as string); // Parse scores from param
+  const [userProfile, setUserProfile] = useState<UserProfile>({});
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserProfile(user);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await ApiService.logout();
+              await AsyncStorage.removeItem('current_user');
+              router.replace('/get-started');
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handlePrivacyPress = () => {
+    Alert.alert('Privacy', 'Privacy settings coming soon!');
+  };
+
+  const handleBiometricPress = () => {
+    Alert.alert('Biometric Data', 'Biometric settings coming soon!');
+  };
+
+  const handlePrivacyPolicyPress = () => {
+    Alert.alert('Privacy Policy', 'Privacy Policy coming soon!');
+  };
+
+  const handleTermsPress = () => {
+    Alert.alert('Terms of Service', 'Terms of Service coming soon!');
+  };
 
   return (
     <View style={styles.container}>
@@ -29,148 +86,105 @@ export default function EPCExplanationProfile() {
         <Ionicons name="close" size={24} color="#1C1C1E" />
       </TouchableOpacity>
       <BlurView intensity={80} tint="light" style={styles.headerContainer}>
-        <Text style={styles.title}>Your EPC Breakdown</Text>
-        <Text style={styles.subtitle}>Understand your Energy, Purpose, and Connection scores</Text>
+        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.subtitle}>Manage your profile and preferences</Text>
       </BlurView>
 
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        {/* Energy Section */}
-        <BlurView intensity={60} tint="light" style={styles.mainCard}>
-          <LinearGradient
-            colors={[getBarColor('Energy') + '80', getBarColor('Energy') + '60']}
-            style={styles.mainCardHeader}
-          >
-            <View style={styles.mainCardTitleRow}>
-              <Text style={styles.mainCardEmoji}>⚡</Text>
-              <View style={styles.mainCardTitleContainer}>
-                <Text style={styles.mainCardTitle}>Energy</Text>
-                <Text style={styles.mainCardScore}>{scores.energy}%</Text>
-              </View>
-            </View>
-            <View style={styles.mainCardBarContainer}>
-              <View style={[styles.mainCardBarBackground, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
-                <View style={[styles.mainCardBarFill, { width: `${scores.energy}%`, backgroundColor: getBarColor('Energy') }]} />
-              </View>
-            </View>
-          </LinearGradient>
+        {/* Profile Information Section */}
+        <BlurView intensity={60} tint="light" style={styles.settingsCard}>
+          <View style={styles.settingsHeader}>
+            <Ionicons name="person-circle-outline" size={24} color="#007AFF" />
+            <Text style={styles.settingsHeaderTitle}>Profile Information</Text>
+          </View>
           
-          <View style={styles.subCardsContainer}>
-            <View style={[styles.subCard, { backgroundColor: getBarColor('Energy') + '10' }]}>
-              <Text style={styles.subCardTitle}>What it means</Text>
-              <Text style={styles.subCardText}>
-                Your physical and mental vitality level. Think of it as your battery charge - how ready you are to tackle challenges and seize opportunities.
-              </Text>
+          <View style={styles.settingsSection}>
+            <View style={styles.settingsField}>
+              <Text style={styles.fieldLabel}>Name</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={userProfile.name || ''}
+                editable={false}
+                placeholder="No name set"
+              />
             </View>
             
-            <View style={[styles.subCard, { backgroundColor: getBarColor('Energy') + '10' }]}>
-              <Text style={styles.subCardTitle}>Quick wins</Text>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>😴</Text>
-                <Text style={styles.tipText}>Get 7-9 hours of quality sleep</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>💧</Text>
-                <Text style={styles.tipText}>Stay hydrated throughout the day</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>🚶</Text>
-                <Text style={styles.tipText}>Take 5-minute movement breaks</Text>
+            <View style={styles.settingsField}>
+              <Text style={styles.fieldLabel}>Email</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={userProfile.email || ''}
+                editable={false}
+                placeholder="No email set"
+              />
+            </View>
+            
+            <View style={styles.settingsField}>
+              <Text style={styles.fieldLabel}>Email Status</Text>
+              <View style={styles.verificationContainer}>
+                <Text style={[styles.verificationText, { color: userProfile.emailVerified ? '#4CAF50' : '#FF6B6B' }]}>
+                  {userProfile.emailVerified ? 'Verified' : 'Not Verified'}
+                </Text>
+                <Ionicons 
+                  name={userProfile.emailVerified ? "checkmark-circle" : "alert-circle"} 
+                  size={16} 
+                  color={userProfile.emailVerified ? '#4CAF50' : '#FF6B6B'} 
+                />
               </View>
             </View>
           </View>
         </BlurView>
 
-        {/* Purpose Section */}
-        <BlurView intensity={60} tint="light" style={styles.mainCard}>
-          <LinearGradient
-            colors={[getBarColor('Purpose') + '80', getBarColor('Purpose') + '60']}
-            style={styles.mainCardHeader}
-          >
-            <View style={styles.mainCardTitleRow}>
-              <Text style={styles.mainCardEmoji}>💡</Text>
-              <View style={styles.mainCardTitleContainer}>
-                <Text style={styles.mainCardTitle}>Purpose</Text>
-                <Text style={styles.mainCardScore}>{scores.purpose}%</Text>
-              </View>
-            </View>
-            <View style={styles.mainCardBarContainer}>
-              <View style={[styles.mainCardBarBackground, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
-                <View style={[styles.mainCardBarFill, { width: `${scores.purpose}%`, backgroundColor: getBarColor('Purpose') }]} />
-              </View>
-            </View>
-          </LinearGradient>
-          
-          <View style={styles.subCardsContainer}>
-            <View style={[styles.subCard, { backgroundColor: getBarColor('Purpose') + '10' }]}>
-              <Text style={styles.subCardTitle}>What it means</Text>
-              <Text style={styles.subCardText}>
-                Your sense of direction and meaning in life. It's about feeling aligned with your values and having goals that truly matter to you.
-              </Text>
-            </View>
-            
-            <View style={[styles.subCard, { backgroundColor: getBarColor('Purpose') + '10' }]}>
-              <Text style={styles.subCardTitle}>Quick wins</Text>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>🎯</Text>
-                <Text style={styles.tipText}>Write down your core values</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>📝</Text>
-                <Text style={styles.tipText}>Set one meaningful goal this week</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>🔥</Text>
-                <Text style={styles.tipText}>Do something that ignites your passion</Text>
-              </View>
-            </View>
+        {/* Settings & Preferences */}
+        <BlurView intensity={60} tint="light" style={styles.settingsCard}>
+          <View style={styles.settingsHeader}>
+            <Ionicons name="settings-outline" size={24} color="#007AFF" />
+            <Text style={styles.settingsHeaderTitle}>Settings & Preferences</Text>
           </View>
+          
+          <TouchableOpacity style={styles.settingsButton} onPress={handleBiometricPress}>
+            <View style={styles.settingsButtonContent}>
+              <Ionicons name="finger-print-outline" size={24} color="#333" />
+              <Text style={styles.settingsButtonText}>Biometric Data</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.settingsButton} onPress={handlePrivacyPress}>
+            <View style={styles.settingsButtonContent}>
+              <Ionicons name="shield-checkmark-outline" size={24} color="#333" />
+              <Text style={styles.settingsButtonText}>Privacy Settings</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
         </BlurView>
 
-        {/* Connection Section */}
-        <BlurView intensity={60} tint="light" style={styles.mainCard}>
-          <LinearGradient
-            colors={[getBarColor('Connection') + '80', getBarColor('Connection') + '60']}
-            style={styles.mainCardHeader}
+        {/* Account Actions */}
+        <BlurView intensity={60} tint="light" style={styles.settingsCard}>
+          <TouchableOpacity 
+            style={[styles.settingsButton, styles.logoutButton]} 
+            onPress={handleLogout}
+            disabled={isLoading}
           >
-            <View style={styles.mainCardTitleRow}>
-              <Text style={styles.mainCardEmoji}>🤝</Text>
-              <View style={styles.mainCardTitleContainer}>
-                <Text style={styles.mainCardTitle}>Connection</Text>
-                <Text style={styles.mainCardScore}>{scores.connection}%</Text>
-              </View>
-            </View>
-            <View style={styles.mainCardBarContainer}>
-              <View style={[styles.mainCardBarBackground, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
-                <View style={[styles.mainCardBarFill, { width: `${scores.connection}%`, backgroundColor: getBarColor('Connection') }]} />
-              </View>
-            </View>
-          </LinearGradient>
-          
-          <View style={styles.subCardsContainer}>
-            <View style={[styles.subCard, { backgroundColor: getBarColor('Connection') + '10' }]}>
-              <Text style={styles.subCardTitle}>What it means</Text>
-              <Text style={styles.subCardText}>
-                The quality of your relationships and sense of belonging. It's about feeling supported, understood, and connected to others.
+            <View style={styles.settingsButtonContent}>
+              <Ionicons name="log-out-outline" size={24} color="#FF6B6B" />
+              <Text style={[styles.settingsButtonText, { color: '#FF6B6B' }]}>
+                {isLoading ? 'Logging out...' : 'Logout'}
               </Text>
             </View>
-            
-            <View style={[styles.subCard, { backgroundColor: getBarColor('Connection') + '10' }]}>
-              <Text style={styles.subCardTitle}>Quick wins</Text>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>📱</Text>
-                <Text style={styles.tipText}>Text someone you care about</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>👥</Text>
-                <Text style={styles.tipText}>Join a community or group</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>👂</Text>
-                <Text style={styles.tipText}>Practice active listening</Text>
-              </View>
-            </View>
-          </View>
+          </TouchableOpacity>
         </BlurView>
+
+        {/* Footer Links */}
+        <View style={styles.footerContainer}>
+          <TouchableOpacity onPress={handlePrivacyPolicyPress}>
+            <Text style={styles.footerLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text style={styles.footerSeparator}>•</Text>
+          <TouchableOpacity onPress={handleTermsPress}>
+            <Text style={styles.footerLink}>Terms of Service</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
