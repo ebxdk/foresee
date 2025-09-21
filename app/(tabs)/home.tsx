@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Dimensions, GestureResponderEvent, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import components and utilities
 import EnhancedEPCDisplay from '../../components/EnhancedEPCDisplay';
@@ -49,6 +50,7 @@ export default function HomeScreen() {
   const [visibleTaskIndices, setVisibleTaskIndices] = useState<number[]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [backgroundServiceStatus, setBackgroundServiceStatus] = useState<string>('Starting...');
+  const [userName, setUserName] = useState<string>('');
   const router = useRouter();
 
   // Check for new tasks when screen comes into focus (new day)
@@ -68,6 +70,21 @@ export default function HomeScreen() {
     }, [epcScores, userState])
   );
 
+  // Function to load user data and extract first name
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        // Extract first name from full name
+        const firstName = user.name ? user.name.split(' ')[0] : '';
+        setUserName(firstName);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -77,6 +94,9 @@ export default function HomeScreen() {
         ]);
         setEpcScores(scores);
         setUserState(state);
+        
+        // Load user data
+        await loadUserData();
         
         // Load daily tasks
         await loadDailyTasks(scores, state);
@@ -442,7 +462,7 @@ export default function HomeScreen() {
         {/* Greeting and User State */}
         <View style={styles.greetingSection}>
           <View style={styles.greetingContent}>
-            <Text style={styles.greeting}>Hi Ebad,</Text>
+            <Text style={styles.greeting}>Hi {userName || 'there'},</Text>
             <Text style={styles.userState}>You're {stateText} today with a {Math.round(burnout)}% burnout risk - {burnout <= 30 ? 'looking great!' : burnout <= 60 ? 'stay mindful' : 'time to recharge'}</Text>
           </View>
           
