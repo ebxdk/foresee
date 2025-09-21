@@ -20,7 +20,8 @@ export class ApiService {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (apiUrl) {
       console.log('Using environment API URL:', apiUrl);
-      return `${apiUrl}/api`;
+      const trimmed = apiUrl.replace(/\/$/, '');
+      return `${trimmed}/api`;
     }
     
     // Platform-specific URLs for development
@@ -53,7 +54,7 @@ export class ApiService {
       baseUrl = 'http://localhost:8080';
     }
     
-    const fullUrl = `${baseUrl}/api`;
+    const fullUrl = `${baseUrl.replace(/\/$/, '')}/api`;
     console.log(`Platform: ${Platform.OS}, Replit: ${isReplit}, Using API URL: ${fullUrl}`);
     return fullUrl;
   })();
@@ -69,7 +70,9 @@ export class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const token = await AsyncStorage.getItem(this.TOKEN_KEY);
-      const fullUrl = `${this.API_BASE_URL}${endpoint}`;
+      const base = this.API_BASE_URL.replace(/\/$/, '');
+      const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const fullUrl = `${base}${path}`;
       
       console.log('Making API request to:', fullUrl);
       
