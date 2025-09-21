@@ -1,9 +1,9 @@
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EPCScores } from '../utils/epcScoreCalc';
 import { getEnergyBuffer, getScoreTails } from '../utils/storage';
-import EPCExplanationModal from './EPCExplanationModal';
 
 interface EnhancedEPCDisplayProps {
   scores: EPCScores;
@@ -19,6 +19,7 @@ interface EffectStatus {
 }
 
 export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedEPCDisplayProps) {
+  const router = useRouter();
   const [effectStatus, setEffectStatus] = useState<EffectStatus>({
     bufferActive: false,
     bufferMultiplier: 1,
@@ -28,7 +29,6 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
   });
 
   const [pulseAnimation] = useState(new Animated.Value(1));
-  const [modalVisible, setModalVisible] = useState(false);
 
   // Fetch effect status every minute
   useEffect(() => {
@@ -102,12 +102,12 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
   };
 
   const handleEPCPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setModalVisible(true);
-  };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Navigate to the EPC explanation modal with scores as parameters
+    router.push({
+      pathname: '/(modals)/epc-explanation-modal',
+      params: { scores: JSON.stringify(scores) }
+    });
   };
 
   const getBarColor = (label: string) => {
@@ -217,10 +217,6 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
         </Animated.View>
       </TouchableOpacity>
 
-      <EPCExplanationModal 
-        visible={modalVisible} 
-        onClose={handleModalClose} 
-      />
     </>
   );
 }
