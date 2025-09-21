@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ApiService } from '../../services/ApiService';
 
 interface UserProfile {
@@ -16,7 +16,10 @@ interface UserProfile {
 export default function SettingsProfile() {
   const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserProfile>({});
+  const [editedName, setEditedName] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -28,9 +31,42 @@ export default function SettingsProfile() {
       if (userData) {
         const user = JSON.parse(userData);
         setUserProfile(user);
+        setEditedName(user.name || '');
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
+    }
+  };
+
+  const handleEditName = () => {
+    setIsEditingName(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName(userProfile.name || '');
+  };
+
+  const handleSaveName = async () => {
+    if (!editedName.trim()) {
+      Alert.alert('Error', 'Name cannot be empty');
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      // TODO: Add API call to update user name on server
+      // For now, just update local storage
+      const updatedUser = { ...userProfile, name: editedName.trim() };
+      await AsyncStorage.setItem('current_user', JSON.stringify(updatedUser));
+      setUserProfile(updatedUser);
+      setIsEditingName(false);
+      Alert.alert('Success', 'Name updated successfully!');
+    } catch (error) {
+      console.error('Error saving name:', error);
+      Alert.alert('Error', 'Failed to update name. Please try again.');
+    } finally {
+      setIsSavingName(false);
     }
   };
 
@@ -77,6 +113,10 @@ export default function SettingsProfile() {
     Alert.alert('Terms of Service', 'Terms of Service coming soon!');
   };
 
+  const handleProfilePress = () => {
+    Alert.alert('Profile', 'Profile details coming soon!');
+  };
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -91,89 +131,106 @@ export default function SettingsProfile() {
       </BlurView>
 
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        {/* Profile Information Section */}
-        <BlurView intensity={60} tint="light" style={styles.settingsCard}>
-          <View style={styles.settingsHeader}>
-            <Ionicons name="person-circle-outline" size={24} color="#007AFF" />
-            <Text style={styles.settingsHeaderTitle}>Profile Information</Text>
-          </View>
-          
-          <View style={styles.settingsSection}>
-            <View style={styles.settingsField}>
-              <Text style={styles.fieldLabel}>Name</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={userProfile.name || ''}
-                editable={false}
-                placeholder="No name set"
-              />
+        <View style={styles.sectionsContainer}>
+          {/* Profile Information Card */}
+          <BlurView intensity={60} tint="light" style={styles.settingsCard}>
+            <View style={styles.settingsHeader}>
+              <Ionicons name="person-circle-outline" size={24} color="#1C1C1E" />
+              <Text style={styles.settingsHeaderTitle}>Profile</Text>
             </View>
-            
-            <View style={styles.settingsField}>
-              <Text style={styles.fieldLabel}>Email</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={userProfile.email || ''}
-                editable={false}
-                placeholder="No email set"
-              />
-            </View>
-            
-            <View style={styles.settingsField}>
-              <Text style={styles.fieldLabel}>Email Status</Text>
-              <View style={styles.verificationContainer}>
-                <Text style={[styles.verificationText, { color: userProfile.emailVerified ? '#4CAF50' : '#FF6B6B' }]}>
-                  {userProfile.emailVerified ? 'Verified' : 'Not Verified'}
-                </Text>
-                <Ionicons 
-                  name={userProfile.emailVerified ? "checkmark-circle" : "alert-circle"} 
-                  size={16} 
-                  color={userProfile.emailVerified ? '#4CAF50' : '#FF6B6B'} 
+
+            <View style={styles.settingsSection}>
+              <View style={styles.settingsField}>
+                <View style={styles.fieldHeader}>
+                  <Text style={styles.fieldLabel}>Name</Text>
+                  {!isEditingName ? (
+                    <TouchableOpacity onPress={handleEditName}>
+                      <Ionicons name="pencil" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.editActions}>
+                      <TouchableOpacity onPress={handleCancelEdit} style={styles.editActionButton}>
+                        <Ionicons name="close" size={16} color="#FF6B6B" />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={handleSaveName} 
+                        style={styles.editActionButton}
+                        disabled={isSavingName}
+                      >
+                        <Ionicons name="checkmark" size={16} color="#4CAF50" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                <TextInput
+                  style={[
+                    styles.fieldInput, 
+                    isEditingName && styles.fieldInputEditing
+                  ]}
+                  value={isEditingName ? editedName : (userProfile.name || '')}
+                  onChangeText={setEditedName}
+                  editable={isEditingName}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#999"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveName}
                 />
               </View>
-            </View>
-          </View>
-        </BlurView>
 
-        {/* Settings & Preferences */}
-        <BlurView intensity={60} tint="light" style={styles.settingsCard}>
-          <View style={styles.settingsHeader}>
-            <Ionicons name="settings-outline" size={24} color="#007AFF" />
-            <Text style={styles.settingsHeaderTitle}>Settings & Preferences</Text>
-          </View>
-          
-          <TouchableOpacity style={styles.settingsButton} onPress={handleBiometricPress}>
-            <View style={styles.settingsButtonContent}>
-              <Ionicons name="finger-print-outline" size={24} color="#333" />
-              <Text style={styles.settingsButtonText}>Biometric Data</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.settingsButton} onPress={handlePrivacyPress}>
-            <View style={styles.settingsButtonContent}>
-              <Ionicons name="shield-checkmark-outline" size={24} color="#333" />
-              <Text style={styles.settingsButtonText}>Privacy Settings</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-        </BlurView>
+              <View style={styles.settingsField}>
+                <Text style={styles.fieldLabel}>Email</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  value={userProfile.email || ''}
+                  editable={false}
+                  placeholder="No email set"
+                />
+              </View>
 
-        {/* Account Actions */}
-        <BlurView intensity={60} tint="light" style={styles.settingsCard}>
-          <TouchableOpacity 
-            style={[styles.settingsButton, styles.logoutButton]} 
-            onPress={handleLogout}
-            disabled={isLoading}
-          >
-            <View style={styles.settingsButtonContent}>
-              <Ionicons name="log-out-outline" size={24} color="#FF6B6B" />
-              <Text style={[styles.settingsButtonText, { color: '#FF6B6B' }]}>
-                {isLoading ? 'Logging out...' : 'Logout'}
-              </Text>
+              <TouchableOpacity style={styles.settingsButton} onPress={handlePrivacyPress}>
+                <View style={styles.settingsButtonContent}>
+                  <Ionicons name="shield-checkmark-outline" size={24} color="#1C1C1E" />
+                  <Text style={styles.settingsButtonText}>Privacy Settings</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#999" />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </BlurView>
+          </BlurView>
+
+          {/* Settings & Preferences */}
+          <BlurView intensity={60} tint="light" style={styles.settingsCard}>
+            <View style={styles.settingsHeader}>
+              <Ionicons name="settings-outline" size={24} color="#1C1C1E" />
+              <Text style={styles.settingsHeaderTitle}>Settings & Preferences</Text>
+            </View>
+            
+            <TouchableOpacity style={styles.settingsButton} onPress={handleBiometricPress}>
+              <View style={styles.settingsButtonContent}>
+                <Ionicons name="finger-print-outline" size={24} color="#1C1C1E" />
+                <Text style={styles.settingsButtonText}>Biometric Data</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </TouchableOpacity>
+            
+          {/* Removed duplicate Privacy Settings from here; moved under Profile */}
+          </BlurView>
+
+          {/* Account Actions */}
+          <BlurView intensity={60} tint="light" style={styles.settingsCard}>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={handleLogout}
+              disabled={isLoading}
+            >
+              <View style={styles.settingsButtonContent}>
+                <Ionicons name="log-out-outline" size={24} color="#1C1C1E" />
+                <Text style={styles.settingsButtonText}>
+                  {isLoading ? 'Logging out...' : 'Logout'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </BlurView>
+        </View>
 
         {/* Footer Links */}
         <View style={styles.footerContainer}>
@@ -241,109 +298,126 @@ const styles = StyleSheet.create({
   },
   scrollViewContent: {
     paddingHorizontal: 24,
-    paddingTop: 140, // Adjusted for slimmer header
-    paddingBottom: 100, // More bottom padding
-  },
-  mainCard: {
-    borderRadius: 20,
-    marginBottom: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  mainCardHeader: {
-    padding: 24,
-  },
-  mainCardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  mainCardEmoji: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  mainCardTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
+    paddingTop: 140,
+    paddingBottom: 24,
+    flexGrow: 1,
     justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  mainCardTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
-  },
-  mainCardScore: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
-  },
-  mainCardBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mainCardBarBackground: {
-    flex: 1,
-    height: 10,
-    borderRadius: 5,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-  mainCardBarFill: {
-    height: '100%',
-    borderRadius: 5,
-  },
-  subCardsContainer: {
-    padding: 20,
+  sectionsContainer: {
     gap: 16,
   },
-  subCard: {
+  // Settings cards & sections
+  settingsCard: {
     borderRadius: 16,
-    padding: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.75)',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
-  subCardTitle: {
+  settingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  settingsHeaderTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1C1C1E',
-    marginBottom: 12,
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
-  subCardText: {
-    fontSize: 16,
-    color: '#1C1C1E',
-    lineHeight: 24,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  settingsSection: {
+    gap: 14,
   },
-  tipItem: {
+  settingsField: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    color: '#8E8E93',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  fieldInput: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    color: '#1C1C1E',
+  },
+  verificationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 6,
   },
-  tipEmoji: {
-    fontSize: 20,
-    marginRight: 12,
-    width: 24,
+  verificationText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
-  tipText: {
-    flex: 1,
+  // Settings buttons
+  settingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 56,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  settingsButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  settingsButtonText: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#1C1C1E',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
-  closeButton: {
-    display: 'none',
+  logoutButton: {
+    backgroundColor: '#FFF6F6',
+    borderColor: '#FAD4D4',
   },
-  closeButtonText: {
-    display: 'none',
+  // Edit name functionality styles
+  fieldHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editActionButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  fieldInputEditing: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#007AFF',
+    borderWidth: 2,
+  },
+  // Footer styles
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textDecorationLine: 'underline',
   },
 });
