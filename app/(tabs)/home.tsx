@@ -467,12 +467,25 @@ export default function HomeScreen() {
           </View>
           
           {/* Absolutely positioned profile icon that doesn't interfere with text */}
-          <LinearGradient
-            colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
-            style={styles.profileIconAbsolute}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (epcScores) {
+                router.push({
+                  pathname: '/epc-explanation-profile',
+                  params: { scores: JSON.stringify(epcScores) }
+                });
+              }
+            }}
+            activeOpacity={0.8}
           >
-            <Text style={styles.profileInitials}>EK</Text>
-          </LinearGradient>
+            <LinearGradient
+              colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
+              style={styles.profileIconAbsolute}
+            >
+              <Text style={styles.profileInitials}>EK</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         {/* Enhanced EPC Display */}
