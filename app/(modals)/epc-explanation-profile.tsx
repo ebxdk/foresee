@@ -22,7 +22,18 @@ export default function EPCExplanationProfile() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollViewContentNoHeader}>
+      <TouchableOpacity
+        style={styles.closeXButton}
+        onPress={() => router.back()}
+      >
+        <Ionicons name="close" size={24} color="#1C1C1E" />
+      </TouchableOpacity>
+      <BlurView intensity={80} tint="light" style={styles.headerContainer}>
+        <Text style={styles.title}>Your EPC Breakdown</Text>
+        <Text style={styles.subtitle}>Understand your Energy, Purpose, and Connection scores</Text>
+      </BlurView>
+
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
         {/* Energy Section */}
         <BlurView intensity={60} tint="light" style={styles.mainCard}>
           <LinearGradient
@@ -217,11 +228,6 @@ const styles = StyleSheet.create({
   scrollViewContent: {
     paddingHorizontal: 24,
     paddingTop: 140, // Adjusted for slimmer header
-    paddingBottom: 100, // More bottom padding
-  },
-  scrollViewContentNoHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 40, // No header, so much less top padding
     paddingBottom: 100, // More bottom padding
   },
   mainCard: {
