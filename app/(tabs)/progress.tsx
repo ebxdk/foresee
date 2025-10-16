@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
+import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -58,10 +58,13 @@ export default function ProgressScreen() {
               activeOpacity={0.8}
             >
               {/* Background Image */}
-              <Image 
-                source={require('../../assets/images/yearRecap.png')} 
+              <ExpoImage 
+                source={require('../../assets/images/yearRecap.png')}
                 style={styles.recapBackgroundImage}
-                resizeMode="cover"
+                contentFit="cover"
+                transition={0}
+                cachePolicy="memory-disk"
+                priority="high"
               />
               
               {/* Black Gradient Overlay at Bottom */}
@@ -73,10 +76,13 @@ export default function ProgressScreen() {
                   <Text style={styles.recapYearLarge}>2025</Text>
                   <Text style={styles.recapYearMedium}>Year</Text>
                   <Text style={styles.recapYearSmall}>Recap</Text>
-                  <Image 
-                    source={require('../../assets/images/Capcity_Creator_Logo_copy-removebg-preview.png')} 
+                  <ExpoImage 
+                    source={require('../../assets/images/Capcity_Creator_Logo_copy-removebg-preview.png')}
                     style={styles.logoImage}
-                    resizeMode="contain"
+                    contentFit="contain"
+                    transition={0}
+                    cachePolicy="memory-disk"
+                    priority="high"
                   />
                 </View>
               </LinearGradient>

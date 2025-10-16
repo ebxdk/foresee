@@ -1,5 +1,7 @@
 import React from 'react';
 import { Dimensions, Platform, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Line, LinearGradient, Mask, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { getAppleWeatherGradientColor, lightenHexColor } from '../utils/colorUtils';
 
@@ -28,6 +30,8 @@ interface BurnoutGraphChartProps {
 const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
   data,
   selectedPeriod,
+  selectedIndex,
+  onDataPointPress,
   currentOverride,
 }) => {
   // Mobile-optimized chart dimensions for Expo Go iOS
@@ -40,21 +44,55 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
   const graphWidth = chartWidth - paddingLeft - paddingRight;
   const graphHeight = chartHeight - paddingTop - paddingBottom;
 
+  // Scrubber state (Today, Week, Month)
+  const [scrubX, setScrubX] = React.useState<number | null>(null);
+  const [scrubIndex, setScrubIndex] = React.useState<number | null>(null);
+  const isToday = selectedPeriod === 'Today';
+  const isWeek = selectedPeriod === 'Week';
+  const isMonth = selectedPeriod === 'Month';
+  const isScrubbable = isToday || isWeek || isMonth;
+
   // Helper to get X position for a data point based on its original index and selected period
   const getXPositionForDataPoint = (dataPoint: BurnoutDataPoint, index: number) => {
+    // Only log for debugging specific issues - remove in production
+    if (__DEV__ && index < 3) {
+      if (selectedPeriod === 'Today') {
+        console.log(`📍 POS: ${selectedPeriod}[${index}] - ${dataPoint.hour}:${dataPoint.minute}`);
+      } else {
+        console.log(`📍 POS: ${selectedPeriod}[${index}] - ${dataPoint.label}`);
+      }
+    }
+    
     let xPos = paddingLeft;
     if (selectedPeriod === 'Today') {
       // For Today, scale based on 1440 minutes for full 24-hour representation
       if (dataPoint.hour !== undefined && dataPoint.minute !== undefined) {
-        xPos += (((dataPoint.hour * 60) + dataPoint.minute) / 1439) * graphWidth;
+        const totalMinutes = dataPoint.hour * 60 + dataPoint.minute;
+        xPos += (totalMinutes / 1439) * graphWidth; // Use 1439 (0-1439 = 1440 minutes)
       } else {
         // Fallback if hour/minute are unexpectedly missing for 'Today'
-        console.warn('BurnoutGraphChart: Missing hour/minute for Today data point.', dataPoint);
-        xPos += (index / Math.max(data.length - 1, 1)) * graphWidth; // Fallback to index-based scaling
+        if (__DEV__) console.warn('⚠️ POS: Missing hour/minute for Today data point.', dataPoint);
+        xPos += (index / Math.max(currentData.length - 1, 1)) * graphWidth; // Fallback to index-based scaling
       }
     } else {
-      // For Week, Month, Year, scale based on the index in the data array
-      xPos += (index / Math.max(data.length - 1, 1)) * graphWidth;
+      // For Week, position by weekday label across 7 slots so future days don't extend the line
+      if (selectedPeriod === 'Week') {
+        const days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+        const dayIndex = dataPoint.label ? days.indexOf(dataPoint.label) : -1;
+        const denom = 6; // 0..6 across the week
+        const posIndex = dayIndex >= 0 ? dayIndex : index;
+        xPos += (posIndex / denom) * graphWidth;
+      } else if (selectedPeriod === 'Month') {
+        // Position by fixed 5 week slots (W1..W5) so the line can end at current week
+        const weeks = ['W1','W2','W3','W4','W5'];
+        const slotIndex = dataPoint.label ? weeks.indexOf(dataPoint.label) : -1;
+        const denom = 4; // 0..4 across the month weeks
+        const posIndex = slotIndex >= 0 ? slotIndex : index;
+        xPos += (posIndex / denom) * graphWidth;
+      } else {
+        // Year or other: scale based on currentData length
+        xPos += (index / Math.max(currentData.length - 1, 1)) * graphWidth;
+      }
     }
     return xPos;
   };
@@ -66,11 +104,42 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
   // Use the data prop directly, as filtering for 'Today' is handled upstream
   const currentData = data;
+  
+  // Debug: Log data for troubleshooting - inspect sanitized dataset per period to avoid false mismatches
+  if (__DEV__) {
+    const datasetForPeriod = selectedPeriod === 'Today'
+      ? currentData
+      : selectedPeriod === 'Week'
+        ? (typeof getWeekRenderData === 'function' ? getWeekRenderData() : currentData.filter(item => item.hasData))
+        : selectedPeriod === 'Month'
+          ? (typeof getMonthRenderData === 'function' ? getMonthRenderData() : currentData.filter(item => item.hasData))
+          : currentData.filter(item => item.hasData);
 
-  // If no data, render nothing or a placeholder to avoid SVG errors
-  if (currentData.length === 0) {
-    return null; // Or return a <Text>No Data</Text> component
+    if (datasetForPeriod.length > 0) {
+      const hasTimeData = datasetForPeriod[0].hour !== undefined;
+      const shouldHaveTimeData = selectedPeriod === 'Today';
+      if (hasTimeData !== shouldHaveTimeData) {
+        console.warn(`🚨 DATA MISMATCH: ${selectedPeriod} has ${hasTimeData ? 'time' : 'label'} data (${datasetForPeriod.length} points)`);
+        console.log(`🎯 First:`, datasetForPeriod[0]);
+        console.log(`🎯 Last:`, datasetForPeriod[datasetForPeriod.length - 1]);
+      } else {
+        console.log(`✅ DATA OK: ${selectedPeriod} - ${datasetForPeriod.length} points`);
+      }
+    }
   }
+
+  // If no data, render a helpful placeholder
+  if (currentData.length === 0) {
+    console.log('📊 RENDER: No data to render - showing placeholder');
+    return (
+      <View style={{ width: chartWidth, height: chartHeight, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: '#9CA3AF', fontSize: 16 }}>No data available</Text>
+        <Text style={{ color: '#6B7280', fontSize: 14, marginTop: 4 }}>Data will appear as it's collected</Text>
+      </View>
+    );
+  }
+  
+  if (__DEV__) console.log(`📊 RENDER: ${selectedPeriod} chart - ${currentData.length} points`);
   
   // Calculate average color for gradient
   const dataWithActualValues = currentData.filter(item => item.hasData);
@@ -78,17 +147,38 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
     ? dataWithActualValues.reduce((sum, item) => sum + item.value, 0) / dataWithActualValues.length 
     : 0;
 
-  // Simple line path generation like weather app
+  // Enhanced line path generation with smooth curves for Today/Week view
   const generateLinePath = () => {
+    if (__DEV__) console.log(`🎯 PATH: Generating for ${selectedPeriod} - ${currentData.length} total points`);
+    
+    // For Today, draw a continuous path using all points (synthetic + real)
+    const validData = selectedPeriod === 'Today'
+      ? currentData
+      : (selectedPeriod === 'Week' ? getWeekRenderData() : (selectedPeriod === 'Month' ? getMonthClippedData() : currentData.filter(item => item.hasData)));
+    if (__DEV__) console.log(`🎯 PATH: ${validData.length} valid data points`);
+    
+    if (validData.length === 0) {
+      if (__DEV__) console.log(`🎯 PATH: No valid data points, returning empty path`);
+      return '';
+    }
+    
+    // For Today/Week, always use smooth curves to avoid gaps
+    if ((selectedPeriod === 'Today' || selectedPeriod === 'Week' || selectedPeriod === 'Month') && validData.length > 2) {
+      return generateSmoothLinePath();
+    }
+    
+    // For other views, use simple linear connections
     let path = '';
     let isFirstPoint = true;
     
     for (let i = 0; i < currentData.length; i++) {
       const item = currentData[i];
       
-      if (item.hasData) {
+      if (item.hasData && item.value !== undefined && item.value !== null) {
         const x = getXPositionForDataPoint(item, i);
         const y = paddingTop + graphHeight - (item.value / 100) * graphHeight;
+        
+        if (__DEV__ && i < 3) console.log(`🎯 Point ${i}: x=${x.toFixed(1)}, y=${y.toFixed(1)}, value=${item.value}`);
         
         if (isFirstPoint) {
           path += `M ${x} ${y}`;
@@ -97,6 +187,158 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
           path += ` L ${x} ${y}`;
         }
       }
+    }
+    
+    if (__DEV__) console.log(`🎯 PATH: Generated with ${validData.length} points`);
+    return path;
+  };
+
+  // Downsample data for Today chart to reduce visual clutter
+  const downsampleDataForToday = (data: BurnoutDataPoint[]) => {
+    if (selectedPeriod !== 'Today' || data.length <= 100) {
+      return data; // No downsampling needed for other periods or small datasets
+    }
+    
+    const targetPoints = 100; // Much more aggressive downsampling
+    const step = Math.ceil(data.length / targetPoints);
+    const downsampled = [];
+    
+    // Always include first and last points
+    downsampled.push(data[0]);
+    
+    // Sample every step-th point, but ensure we don't exceed target
+    for (let i = step; i < data.length - 1; i += step) {
+      if (downsampled.length < targetPoints - 1) {
+        downsampled.push(data[i]);
+      }
+    }
+    
+    // Always include the last point
+    if (data.length > 1) {
+      downsampled.push(data[data.length - 1]);
+    }
+    
+    if (__DEV__) console.log(`📉 DOWNSAMPLE: ${data.length} → ${downsampled.length} points for Today`);
+    return downsampled;
+  };
+
+  // Week data sanitizer to ensure stable 7 points during refresh
+  function getWeekRenderData() {
+    const looksWeekly = currentData.length <= 14 && (currentData[0]?.hour === undefined);
+    if (looksWeekly) return currentData.filter(item => item.hasData).map((d, i) => ({
+      value: d.value,
+      hasData: d.hasData,
+      label: d.label, // expected 'Su'..'Sa'
+    } as BurnoutDataPoint));
+    const source = currentData;
+    const target = 7;
+    if (source.length === 0) return [] as BurnoutDataPoint[];
+    const step = source.length / target;
+    const weekdays = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    const sampled: BurnoutDataPoint[] = [];
+    for (let i = 0; i < target; i++) {
+      const idx = Math.min(source.length - 1, Math.round(i * step));
+      const s = source[idx];
+      sampled.push({
+        value: s.value,
+        hasData: s.hasData,
+        label: weekdays[i] || weekdays[weekdays.length - 1],
+      } as BurnoutDataPoint);
+    }
+    return sampled;
+  }
+
+  function getMonthRenderData() {
+    // Month should render 5 week buckets (W1..W5). If already weekly labels, pass through.
+    const looksWeeklyMonth = currentData.length <= 7 && (currentData[0]?.hour === undefined);
+    if (looksWeeklyMonth) return currentData.filter(item => item.hasData).map((d, i) => ({
+      value: d.value,
+      hasData: d.hasData,
+      label: d.label, // expected 'W1'..'W5'
+    } as BurnoutDataPoint));
+    const source = currentData;
+    const target = 5;
+    if (source.length === 0) return [] as BurnoutDataPoint[];
+    const step = source.length / target;
+    const sampled: BurnoutDataPoint[] = [];
+    for (let i = 0; i < target; i++) {
+      const idx = Math.min(source.length - 1, Math.round(i * step));
+      const s = source[idx];
+      sampled.push({
+        value: s.value,
+        hasData: s.hasData,
+        label: `W${i + 1}`,
+      } as BurnoutDataPoint);
+    }
+    return sampled;
+  }
+
+  // Clip Month to current week: only include weeks up to selectedIndex or last with hasData
+  function getMonthClippedData() {
+    const weeks = getMonthRenderData();
+    const safeSelected = typeof selectedIndex === 'number' ? selectedIndex : -1;
+    const cutoff = safeSelected >= 0 && safeSelected < weeks.length
+      ? safeSelected
+      : (() => {
+          let last = 0;
+          for (let i = 0; i < weeks.length; i++) {
+            if (weeks[i]?.hasData) last = i;
+          }
+          return last;
+        })();
+    return weeks.slice(0, cutoff + 1);
+  }
+
+  // Generate smooth line path for Today/Week/Month view (Apple Weather style)
+  const generateSmoothLinePath = () => {
+    // For Today, use downsampled data to reduce visual clutter; for Week, sanitize to stable set
+    const dataToUse = selectedPeriod === 'Today' 
+      ? downsampleDataForToday(currentData)
+      : (selectedPeriod === 'Week' ? getWeekRenderData() : (selectedPeriod === 'Month' ? getMonthClippedData() : currentData.filter(item => item.hasData)));
+    
+    const dataWithCoords = dataToUse.map((item, index) => ({
+      x: getXPositionForDataPoint(item, index),
+      y: paddingTop + graphHeight - (item.value / 100) * graphHeight,
+      value: item.value,
+    }));
+
+    if (dataWithCoords.length === 0) return '';
+    if (dataWithCoords.length === 1) return `M ${dataWithCoords[0].x} ${dataWithCoords[0].y}`;
+
+    let path = `M ${dataWithCoords[0].x} ${dataWithCoords[0].y}`;
+    
+    // Generate smooth curves between points with enhanced smoothing for Today/Week
+    const tension = (selectedPeriod === 'Today' || selectedPeriod === 'Week' || selectedPeriod === 'Month') ? 0.6 : 0.3;
+    
+    for (let i = 0; i < dataWithCoords.length - 1; i++) {
+      const current = dataWithCoords[i];
+      const next = dataWithCoords[i + 1];
+      const prev = i > 0 ? dataWithCoords[i - 1] : null;
+      const nextNext = i < dataWithCoords.length - 2 ? dataWithCoords[i + 2] : null;
+      
+      // Calculate control points for smooth curves
+      let cp1x = current.x;
+      let cp1y = current.y;
+      let cp2x = next.x;
+      let cp2y = next.y;
+      
+      if (prev && nextNext) {
+        // Use surrounding points to calculate smooth tangents
+        const dx = (next.x - prev.x) * tension;
+        const dy = (next.y - prev.y) * tension;
+        
+        cp1x = current.x + dx * 0.5;
+        cp1y = current.y + dy * 0.5;
+        
+        const dx2 = (nextNext.x - current.x) * tension;
+        const dy2 = (nextNext.y - current.y) * tension;
+        
+        cp2x = next.x - dx2 * 0.5;
+        cp2y = next.y - dy2 * 0.5;
+      }
+      
+      // Add smooth curve to path
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
     }
     
     return path;
@@ -156,6 +398,159 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
     return paths.join(' '); // Join all segment paths into one string
   };
 
+  // Area path for Today that matches the smooth line and closes to bottom
+  const generateAreaPathToday = () => {
+    if (selectedPeriod !== 'Today') return '';
+    const dataToUse = downsampleDataForToday(currentData);
+    const dataWithCoords = dataToUse.map((item, index) => ({
+      x: getXPositionForDataPoint(item, index),
+      y: paddingTop + graphHeight - (item.value / 100) * graphHeight,
+      value: item.value,
+    }));
+
+    if (dataWithCoords.length === 0) return '';
+    if (dataWithCoords.length === 1) {
+      const p = dataWithCoords[0];
+      const bottomY = paddingTop + graphHeight;
+      return `M ${p.x} ${p.y} L ${p.x} ${bottomY} Z`;
+    }
+
+    let path = `M ${dataWithCoords[0].x} ${dataWithCoords[0].y}`;
+    const tension = 0.6; // Match Today's higher smoothing
+    for (let i = 0; i < dataWithCoords.length - 1; i++) {
+      const current = dataWithCoords[i];
+      const next = dataWithCoords[i + 1];
+      const prev = i > 0 ? dataWithCoords[i - 1] : null;
+      const nextNext = i < dataWithCoords.length - 2 ? dataWithCoords[i + 2] : null;
+
+      let cp1x = current.x;
+      let cp1y = current.y;
+      let cp2x = next.x;
+      let cp2y = next.y;
+
+      if (prev && nextNext) {
+        const dx = (next.x - prev.x) * tension;
+        const dy = (next.y - prev.y) * tension;
+        cp1x = current.x + dx * 0.5;
+        cp1y = current.y + dy * 0.5;
+        const dx2 = (nextNext.x - current.x) * tension;
+        const dy2 = (nextNext.y - current.y) * tension;
+        cp2x = next.x - dx2 * 0.5;
+        cp2y = next.y - dy2 * 0.5;
+      }
+
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+    }
+
+    const first = dataWithCoords[0];
+    const last = dataWithCoords[dataWithCoords.length - 1];
+    const bottomY = paddingTop + graphHeight;
+    path += ` L ${last.x} ${bottomY} L ${first.x} ${bottomY} Z`;
+    return path;
+  };
+
+  // Area path for Week that matches the smooth line and closes to bottom
+  const generateAreaPathWeek = () => {
+    if (selectedPeriod !== 'Week') return '';
+    const dataSet = getWeekRenderData();
+    const dataWithCoords = dataSet.map((item, index) => ({
+      x: getXPositionForDataPoint(item, index),
+      y: paddingTop + graphHeight - (item.value / 100) * graphHeight,
+      value: item.value,
+    }));
+
+    if (dataWithCoords.length === 0) return '';
+    if (dataWithCoords.length === 1) {
+      const p = dataWithCoords[0];
+      const bottomY = paddingTop + graphHeight;
+      return `M ${p.x} ${p.y} L ${p.x} ${bottomY} Z`;
+    }
+
+    let path = `M ${dataWithCoords[0].x} ${dataWithCoords[0].y}`;
+    const tension = 0.6;
+    for (let i = 0; i < dataWithCoords.length - 1; i++) {
+      const current = dataWithCoords[i];
+      const next = dataWithCoords[i + 1];
+      const prev = i > 0 ? dataWithCoords[i - 1] : null;
+      const nextNext = i < dataWithCoords.length - 2 ? dataWithCoords[i + 2] : null;
+
+      let cp1x = current.x;
+      let cp1y = current.y;
+      let cp2x = next.x;
+      let cp2y = next.y;
+
+      if (prev && nextNext) {
+        const dx = (next.x - prev.x) * tension;
+        const dy = (next.y - prev.y) * tension;
+        cp1x = current.x + dx * 0.5;
+        cp1y = current.y + dy * 0.5;
+        const dx2 = (nextNext.x - current.x) * tension;
+        const dy2 = (nextNext.y - current.y) * tension;
+        cp2x = next.x - dx2 * 0.5;
+        cp2y = next.y - dy2 * 0.5;
+      }
+
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+    }
+
+    const first = dataWithCoords[0];
+    const last = dataWithCoords[dataWithCoords.length - 1];
+    const bottomY = paddingTop + graphHeight;
+    path += ` L ${last.x} ${bottomY} L ${first.x} ${bottomY} Z`;
+    return path;
+  };
+
+  // Area path for Month that matches the smooth line and closes to bottom
+  const generateAreaPathMonth = () => {
+    if (selectedPeriod !== 'Month') return '';
+    const dataSet = getMonthClippedData();
+    const dataWithCoords = dataSet.map((item, index) => ({
+      x: getXPositionForDataPoint(item, index),
+      y: paddingTop + graphHeight - (item.value / 100) * graphHeight,
+      value: item.value,
+    }));
+
+    if (dataWithCoords.length === 0) return '';
+    if (dataWithCoords.length === 1) {
+      const p = dataWithCoords[0];
+      const bottomY = paddingTop + graphHeight;
+      return `M ${p.x} ${p.y} L ${p.x} ${bottomY} Z`;
+    }
+
+    let path = `M ${dataWithCoords[0].x} ${dataWithCoords[0].y}`;
+    const tension = 0.6;
+    for (let i = 0; i < dataWithCoords.length - 1; i++) {
+      const current = dataWithCoords[i];
+      const next = dataWithCoords[i + 1];
+      const prev = i > 0 ? dataWithCoords[i - 1] : null;
+      const nextNext = i < dataWithCoords.length - 2 ? dataWithCoords[i + 2] : null;
+
+      let cp1x = current.x;
+      let cp1y = current.y;
+      let cp2x = next.x;
+      let cp2y = next.y;
+
+      if (prev && nextNext) {
+        const dx = (next.x - prev.x) * tension;
+        const dy = (next.y - prev.y) * tension;
+        cp1x = current.x + dx * 0.5;
+        cp1y = current.y + dy * 0.5;
+        const dx2 = (nextNext.x - current.x) * tension;
+        const dy2 = (nextNext.y - current.y) * tension;
+        cp2x = next.x - dx2 * 0.5;
+        cp2y = next.y - dy2 * 0.5;
+      }
+
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+    }
+
+    const first = dataWithCoords[0];
+    const last = dataWithCoords[dataWithCoords.length - 1];
+    const bottomY = paddingTop + graphHeight;
+    path += ` L ${last.x} ${bottomY} L ${first.x} ${bottomY} Z`;
+    return path;
+  };
+
   // Generate gap areas (greyed out sections for missing data)
   const generateGapAreas = () => {
     const gapAreas = [];
@@ -213,63 +608,8 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
   // Generate dotted lines for gaps
   const generateGapLines = () => {
-    const gapLines = [];
-
-    for (let i = 0; i < currentData.length; i++) {
-      const currentItem = currentData[i];
-      const prevItem = i > 0 ? currentData[i - 1] : null;
-      const nextItem = i < currentData.length - 1 ? currentData[i + 1] : null;
-
-      // Calculate x-position for the current index
-      const currentX = getXPositionForDataPoint(currentItem, i);
-      // Calculate x-position for the previous index
-      const prevX = i > 0 ? getXPositionForDataPoint(prevItem!, i - 1) : currentX;
-      // Calculate x-position for the next index
-      const nextX = i < currentData.length - 1 ? getXPositionForDataPoint(nextItem!, i + 1) : currentX;
-
-      // Case 1: Start of a gap (previous point had data, current point does not)
-      if (prevItem && prevItem.hasData && !currentItem.hasData) {
-        gapLines.push({
-          x1: prevX,
-          y1: paddingTop,
-          x2: prevX,
-          y2: paddingTop + graphHeight
-        });
-      }
-
-      // Case 2: End of a gap (current point has data, previous point did not)
-      if (currentItem.hasData && prevItem && !prevItem.hasData) {
-        gapLines.push({
-          x1: currentX,
-          y1: paddingTop,
-          x2: currentX,
-          y2: paddingTop + graphHeight
-        });
-      }
-
-      // Special case: If the very first point is a gap, and the next is data, draw line at nextItem.
-      // This handles a leading gap followed by data.
-      if (i === 0 && !currentItem.hasData && nextItem && nextItem.hasData) {
-         gapLines.push({
-            x1: nextX,
-            y1: paddingTop,
-            x2: nextX,
-            y2: paddingTop + graphHeight
-         });
-      }
-
-      // Special case: If the very last point is a gap, and the previous was data, draw line at prevItem.
-      // This handles a trailing gap preceded by data.
-      if (i === currentData.length - 1 && !currentItem.hasData && prevItem && prevItem.hasData) {
-          gapLines.push({
-            x1: prevX,
-            y1: paddingTop,
-            x2: prevX,
-            y2: paddingTop + graphHeight
-          });
-      }
-    }
-    return gapLines;
+    // Disabled for a cleaner Today graph
+    return [] as Array<{ x1: number; y1: number; x2: number; y2: number }>;
   };
 
   // Generate mask rectangles for the line to cut off overflow at gaps
@@ -369,6 +709,105 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
   const xAxisLabels = getXAxisLabels();
 
+  // Gesture: map finger x to nearest data point (Today/Week/Month)
+  const minX = paddingLeft;
+  const maxX = paddingLeft + graphWidth;
+
+  const getInteractiveData = () => {
+    if (isToday) return downsampleDataForToday(currentData);
+    if (isWeek) return getWeekRenderData();
+    if (isMonth) return getMonthRenderData();
+    return currentData.filter(item => item.hasData);
+  };
+
+  const findNearestIndexAtX = (px: number): number | null => {
+    if (!isScrubbable) return null;
+    const list = getInteractiveData();
+    if (list.length === 0) return null;
+
+    const clamped = Math.max(minX, Math.min(maxX, px));
+    const proportion = (clamped - paddingLeft) / Math.max(graphWidth, 1);
+    if (isToday) {
+      const minutesAtX = proportion * 1439;
+      let nearestIndex = 0;
+      let bestDelta = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < list.length; i++) {
+        const pt = list[i];
+        if (pt.hour === undefined || pt.minute === undefined) continue;
+        const m = pt.hour * 60 + pt.minute;
+        const delta = Math.abs(m - minutesAtX);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          nearestIndex = i;
+        }
+      }
+      return nearestIndex;
+    } else {
+      if (isWeek) {
+        // Snap to nearest weekday slot across 7 buckets, match by label in filtered list
+        const days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+        const targetSlot = Math.round(proportion * 6);
+        let nearestIdx = 0;
+        let bestDelta = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          const slot = item.label ? days.indexOf(item.label) : -1;
+          const delta = Math.abs((slot >= 0 ? slot : i) - targetSlot);
+          if (delta < bestDelta) {
+            bestDelta = delta;
+            nearestIdx = i;
+          }
+        }
+        return nearestIdx;
+      } else if (isMonth) {
+        // Snap to nearest week slot across 5 buckets (W1..W5)
+        const weeks = ['W1','W2','W3','W4','W5'];
+        const targetSlot = Math.round(proportion * 4);
+        let nearestIdx = 0;
+        let bestDelta = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          const slot = item.label ? weeks.indexOf(item.label) : -1;
+          const delta = Math.abs((slot >= 0 ? slot : i) - targetSlot);
+          if (delta < bestDelta) {
+            bestDelta = delta;
+            nearestIdx = i;
+          }
+        }
+        return nearestIdx;
+      }
+      const idx = Math.round(proportion * (list.length - 1));
+      return Math.max(0, Math.min(list.length - 1, idx));
+    }
+  };
+
+  const updateScrubFromX = (px: number) => {
+    if (!isScrubbable) return;
+    const x = Math.max(minX, Math.min(maxX, px));
+    const idx = findNearestIndexAtX(x);
+    setScrubX(x);
+    setScrubIndex(idx);
+  };
+
+  const clearScrub = () => {
+    setScrubX(null);
+    setScrubIndex(null);
+  };
+
+  const panGesture = Gesture.Pan()
+    .onBegin(e => {
+      runOnJS(updateScrubFromX)(e.x);
+    })
+    .onUpdate(e => {
+      runOnJS(updateScrubFromX)(e.x);
+    })
+    .onEnd(() => {
+      runOnJS(clearScrub)();
+    })
+    .onFinalize(() => {
+      runOnJS(clearScrub)();
+    });
+
   // Helper to get X position for a data point based on its original index
   // This helper is now redundant as we have getXPositionForDataPoint with the same logic
   // Renamed to avoid conflict and kept for reference until fully removed.
@@ -386,7 +825,8 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.chartContainer}>
-        <Svg width={chartWidth} height={chartHeight}>
+        <GestureDetector gesture={panGesture}>
+          <Svg width={chartWidth} height={chartHeight}>
           <Defs>
             {/* Gradient for the line - Refined with subtle variation and dynamic colors (Y-axis based) */}
             <LinearGradient id="lineGradient" x1="0%" y1={paddingTop} x2="0%" y2={paddingTop + graphHeight} gradientUnits="userSpaceOnUse">
@@ -425,11 +865,7 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
                 : []}
             </LinearGradient>
             
-            {/* Gradient for gap areas */}
-            <LinearGradient id="gapGradient" x1="0%=" y1="0%" x2="0%" y2="100%">
-              <Stop offset="0%" stopColor="#B0B0B0" stopOpacity="0.4" />
-              <Stop offset="100%" stopColor="#B0B0B0" stopOpacity="0.2" />
-            </LinearGradient>
+            {/* Gap gradient removed - no grey shaded areas */}
 
             {/* Mask for the continuous line to cut off rounded caps at gaps */}
             <Mask id="lineCutoutMask" x="0" y="0" width={chartWidth} height={chartHeight} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
@@ -465,51 +901,91 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
           {/* Removed vertical grid lines */}
 
-          {/* Gap areas (greyed out sections for missing data) */}
-          {generateGapAreas().map((gap, index) => (
-            <Rect
-              key={`gap-${index}`}
-              x={gap.x}
-              y={gap.y}
-              width={gap.width}
-              height={gap.height}
-              fill="url(#gapGradient)"
+          {/* Gap areas removed - no grey shaded areas */}
+
+          {/* No dotted lines for gaps */}
+
+          {/* Area fill below the line - Apple Weather style (Today/Week/Month) */}
+          {(selectedPeriod === 'Today' || selectedPeriod === 'Week' || selectedPeriod === 'Month') && (
+            <Path
+              d={selectedPeriod === 'Today' ? generateAreaPathToday() : (selectedPeriod === 'Week' ? generateAreaPathWeek() : generateAreaPathMonth())}
+              fill="url(#areaGradient)"
+              stroke="none"
             />
-          ))}
+          )}
 
-          {/* Dotted lines for gaps */}
-          {generateGapLines().map((line, index) => (
-            <Line
-              key={`gap-line-${index}`}
-              x1={line.x1}
-              y1={line.y1}
-              x2={line.x2}
-              y2={line.y2}
-              stroke="#C7C7CC"
-              strokeWidth="1"
-              strokeDasharray="3,3"
-            />
-          ))}
-
-          {/* Area fill below the line - Apple Weather style */}
-          {/* <Path
-            d={generateAreaPath()}
-            fill="url(#areaGradient)"
-            stroke="none"
-          /> */}
-
-          {/* Simple line like weather app */}
+          {/* Simple line like weather app */
+          }
           <Path
             d={generateLinePath()}
             stroke="url(#lineGradient)"
-            strokeWidth="2"
+            strokeWidth={(selectedPeriod === 'Today' || selectedPeriod === 'Week' || selectedPeriod === 'Month') ? 6 : 3}
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          
+          {/* Scrubber visuals (Today/Week) */}
+          {isScrubbable && scrubIndex != null && (() => {
+            const list = getInteractiveData();
+            const item = list[scrubIndex!];
+            if (!item) return null;
+            const cx = getXPositionForDataPoint(item, scrubIndex!);
+            const cy = paddingTop + graphHeight - (item.value / 100) * graphHeight;
+            return (
+              <>
+                <Line
+                  x1={cx}
+                  y1={paddingTop}
+                  x2={cx}
+                  y2={chartHeight - paddingBottom}
+                  stroke="#000000"
+                  opacity={0.12}
+                  strokeWidth="1.5"
+                />
+                <Circle cx={cx} cy={cy} r="4" fill={getBurnoutColor(item.value)} stroke="#FFFFFF" strokeWidth="1.5" />
+              </>
+            );
+          })()}
+
+          {/* "Now" indicator for Today view */}
+          {selectedPeriod === 'Today' && (() => {
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            const nowX = paddingLeft + (currentMinutes / 1439) * graphWidth;
+            if (__DEV__) console.log(`⏰ NOW: Current time indicator at ${Math.floor(currentMinutes/60)}:${String(currentMinutes%60).padStart(2,'0')}`);
+            return (
+              <Line
+                x1={nowX}
+                y1={paddingTop}
+                x2={nowX}
+                y2={chartHeight - paddingBottom}
+                stroke={getBurnoutColor(50)}
+                strokeWidth="2"
+                opacity={0.35}
+              />
+            );
+          })()}
+          
+          {/* Fallback: Show individual points if line isn't visible (not for Today/Week/Month) */}
+          {selectedPeriod !== 'Today' && selectedPeriod !== 'Week' && selectedPeriod !== 'Month' && currentData.filter(item => item.hasData).map((item, index) => {
+            const x = getXPositionForDataPoint(item, index);
+            const y = paddingTop + graphHeight - (item.value / 100) * graphHeight;
+            return (
+              <Circle
+                key={`point-${index}`}
+                cx={x}
+                cy={y}
+                r="3"
+                fill={getBurnoutColor(item.value)}
+                stroke="#FFFFFF"
+                strokeWidth="1"
+              />
+            );
+          })}
 
           {/* Individual data points for isolated points (single data points) */}
-          {selectedPeriod !== 'Today' && currentData.map((item, index) => {
+          {selectedPeriod !== 'Today' && selectedPeriod !== 'Week' && selectedPeriod !== 'Month' && currentData.map((item, index) => {
             if (!item.hasData) return null;
             
             const originalIndex = data.indexOf(item);
@@ -559,7 +1035,8 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
           })}
 
           {/* No gap indicators - clean gaps with no visual clutter */}
-        </Svg>
+          </Svg>
+        </GestureDetector>
 
         {/* X-axis labels positioned below to prevent overlap */}
         <View style={[styles.xAxisLabels, { 
@@ -579,6 +1056,28 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
             </View>
           ))}
         </View>
+        {/* Tooltip overlay for scrubber (Today/Week) */}
+        {isScrubbable && scrubIndex != null && (() => {
+          const list = getInteractiveData();
+          const item = list[scrubIndex!];
+          if (!item) return null;
+          const cx = getXPositionForDataPoint(item, scrubIndex!);
+          const cy = paddingTop + graphHeight - (item.value / 100) * graphHeight;
+          const tooltipWidth = 88;
+          const clampedLeft = Math.max(paddingLeft, Math.min(paddingLeft + graphWidth - tooltipWidth, cx - tooltipWidth / 2));
+          const timeLabel = isToday
+            ? ((item.hour !== undefined && item.minute !== undefined)
+                ? new Date(0, 0, 0, item.hour, item.minute).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                : (item.label || ''))
+            : (item.label || '');
+          return (
+            <View style={{ position: 'absolute', left: clampedLeft, top: Math.max(8, cy - 42), width: tooltipWidth }}>
+              <View style={{ backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>{timeLabel} • {item.value}%</Text>
+              </View>
+            </View>
+          );
+        })()}
       </View>
 
       {/* Current status - clean and simple */}

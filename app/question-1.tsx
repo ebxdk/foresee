@@ -1,13 +1,18 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useQuestionnaire } from '../utils/QuestionnaireContext';
 
 export default function Question1Page() {
   const router = useRouter();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const { setAnswer } = useQuestionnaire();
+  const { setAnswer, clearAnswers } = useQuestionnaire();
+
+  // Clear answers only once when component mounts
+  useEffect(() => {
+    clearAnswers();
+  }, []); // Empty dependency array - only run once
 
   const question = {
     id: 1,

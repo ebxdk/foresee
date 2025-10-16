@@ -1,22 +1,70 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Dimensions, GestureResponderEvent, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import components and utilities
 import EnhancedEPCDisplay from '../../components/EnhancedEPCDisplay';
-import { getAppleHealthDataOrMock } from '../../utils/appleHealth';
-import { getBackgroundDecayServiceStatus, startBackgroundDecayService } from '../../utils/backgroundDecayService';
+import { getBackgroundDecayServiceStatus } from '../../utils/backgroundDecayService';
 import { calculateBurnoutFromScores } from '../../utils/burnoutCalc';
 import { getGreenToOrangeGradient } from '../../utils/colorUtils';
 import { EPCScores } from '../../utils/epcScoreCalc';
 import { initializeMockSleepSystem } from '../../utils/mockSleepSystem';
-import { getDailyTasks, getEPCScores, getOnboardingAnswers, getUserState, shouldRegenerateTasks, storeEPCScores, updateTaskCompletion } from '../../utils/storage';
+import { getDailyTasks, getEPCScores, getUserState, shouldRegenerateTasks, storeEPCScores, updateTaskCompletion } from '../../utils/storage';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Tool state mapping based on TOOL_CONFIG
+const toolStateMapping: { [key: string]: 'Maximized' | 'Reserved' | 'Indulgent' | 'Fatigued' } = {
+  // Fatigued tools
+  'HydrationHero': 'Fatigued',
+  'PostItPriority': 'Fatigued',
+  'OxygenMask': 'Fatigued',
+  'NourishmentCheck': 'Fatigued',
+  'PhoneFreePause': 'Fatigued',
+  
+  // Indulgent tools
+  'PleasurePlaylist': 'Indulgent',
+  'MentalUnload': 'Indulgent',
+  'ConnectionSpark': 'Indulgent',
+  'SweetSpotScan': 'Indulgent',
+  
+  // Reserved tools
+  'BoundaryBuilder': 'Reserved',
+  'ScheduleScrub': 'Reserved',
+  'EnergyBudgetCheck': 'Reserved',
+  'GratitudeGuardrail': 'Reserved',
+  
+  // Maximized tools
+  'CapacityAudit': 'Maximized',
+  'RecoveryRitual': 'Maximized',
+  'TeachItForward': 'Maximized',
+  'AimReview': 'Maximized',
+};
+
+// Tool data for filtering
+const toolsData = [
+  { id: 'HydrationHero', name: 'Hydration Hero' },
+  { id: 'PostItPriority', name: 'Post-it Priority' },
+  { id: 'OxygenMask', name: 'The Oxygen Mask' },
+  { id: 'NourishmentCheck', name: 'Nourishment Check' },
+  { id: 'PhoneFreePause', name: 'Phone-Free Pause' },
+  { id: 'PleasurePlaylist', name: 'Pleasure Playlist' },
+  { id: 'MentalUnload', name: 'Mental Unload' },
+  { id: 'ConnectionSpark', name: 'Connection Spark' },
+  { id: 'SweetSpotScan', name: 'Sweet Spot Scan' },
+  { id: 'BoundaryBuilder', name: 'Boundary Builder' },
+  { id: 'ScheduleScrub', name: 'Schedule Scrub' },
+  { id: 'EnergyBudgetCheck', name: 'Energy Budget Check' },
+  { id: 'GratitudeGuardrail', name: 'Gratitude Guardrail' },
+  { id: 'CapacityAudit', name: 'Capacity Audit' },
+  { id: 'RecoveryRitual', name: 'Recovery Ritual' },
+  { id: 'TeachItForward', name: 'Teach It Forward' },
+  { id: 'AimReview', name: 'Aim Review' },
+];
 
 // Fallback tasks if AI generation fails
 const fallbackTasks = [
@@ -51,6 +99,8 @@ export default function HomeScreen() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [backgroundServiceStatus, setBackgroundServiceStatus] = useState<string>('Starting...');
   const [userName, setUserName] = useState<string>('');
+  const [profileInitials, setProfileInitials] = useState<string>('');
+  const [recommendedTool, setRecommendedTool] = useState<{ id: string; name: string } | null>(null);
   const router = useRouter();
 
   // Check for new tasks when screen comes into focus (new day)
@@ -79,6 +129,17 @@ export default function HomeScreen() {
         // Extract first name from full name
         const firstName = user.name ? user.name.split(' ')[0] : '';
         setUserName(firstName);
+        // Compute initials from full name or email
+        const fullName: string = user.name || '';
+        const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+        let initials = '';
+        if (nameParts.length > 0) {
+          initials = nameParts[0]?.[0] || '';
+          if (nameParts.length > 1) initials += nameParts[1]?.[0] || '';
+        } else if (user.email) {
+          initials = user.email[0] || '';
+        }
+        setProfileInitials(initials.toUpperCase());
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -95,6 +156,14 @@ export default function HomeScreen() {
         setEpcScores(scores);
         setUserState(state);
         
+        // Set recommended tool based on user state
+        if (state) {
+          const filteredTools = toolsData.filter(tool => toolStateMapping[tool.id] === state);
+          if (filteredTools.length > 0) {
+            setRecommendedTool(filteredTools[0]); // First tool for this state
+          }
+        }
+        
         // Load user data
         await loadUserData();
         
@@ -104,8 +173,19 @@ export default function HomeScreen() {
         // Initialize mock sleep system
         await initializeMockSleepSystem();
         
-        // Start background decay service
-        startBackgroundDecayService();
+        // Start SMART background service (works in both Expo Go and builds)
+        const { initializeSmartBackgroundService, testBackgroundFunctionality } = await import('../../utils/smartBackgroundService');
+        await initializeSmartBackgroundService();
+        
+        // Test background functionality in development
+        if (__DEV__) {
+          await testBackgroundFunctionality();
+          
+          // Run Phase 1 tests
+          const { runPhase1Tests } = await import('../../utils/phase1TestSuite');
+          const phase1Success = await runPhase1Tests();
+          console.log(`🎯 Phase 1 Tests: ${phase1Success ? 'PASSED' : 'FAILED'}`);
+        }
         
         // Update background service status
         const status = getBackgroundDecayServiceStatus();
@@ -120,6 +200,13 @@ export default function HomeScreen() {
     
     loadData();
   }, []);
+
+  // Refresh user data whenever Home screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+    }, [])
+  );
 
   // Add background service listener for real-time updates
   useEffect(() => {
@@ -406,26 +493,43 @@ export default function HomeScreen() {
     console.log('Retaking assessment...');
 
     try {
-      const onboardingAnswers = await getOnboardingAnswers();
-      if (!onboardingAnswers) {
-        console.error('No onboarding answers found to retake assessment.');
-        router.push('/onboarding'); 
-        return;
-      }
-
-      const biometricData = await getAppleHealthDataOrMock();
-
-      const { calculateEPCScores } = await import('../../utils/epcScoreCalc');
-      const newEPCScores = calculateEPCScores(onboardingAnswers, biometricData);
-
-      await storeEPCScores(newEPCScores);
-
-      console.log('✅ Assessment retaken, new EPC scores stored:', newEPCScores);
-      
-      router.push('/question-1'); 
+      // Navigate to the first question to start the full 10-question flow
+      router.push('/question-1');
 
     } catch (error) {
       console.error('Error during retake assessment:', error);
+    }
+  };
+
+  const handleGoToTool = () => {
+    if (!recommendedTool) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Navigate to the recommended tool page
+    const toolRoutes: { [key: string]: string } = {
+      'HydrationHero': '/hydration-hero',
+      'PostItPriority': '/post-it-priority',
+      'OxygenMask': '/oxygen-mask-get-started',
+      'NourishmentCheck': '/nourishment-check',
+      'PhoneFreePause': '/phone-free-pause',
+      'PleasurePlaylist': '/pleasure-playlist',
+      'MentalUnload': '/mental-unload',
+      'ConnectionSpark': '/connection-spark',
+      'SweetSpotScan': '/sweet-spot-scan',
+      'BoundaryBuilder': '/boundary-builder',
+      'ScheduleScrub': '/schedule-scrub',
+      'EnergyBudgetCheck': '/energy-budget-check',
+      'GratitudeGuardrail': '/gratitude-guardrail',
+      'CapacityAudit': '/capacity-audit',
+      'RecoveryRitual': '/recovery-ritual',
+      'TeachItForward': '/teach-it-forward',
+      'AimReview': '/aim-review',
+    };
+    
+    const route = toolRoutes[recommendedTool.id];
+    if (route) {
+      (router as any).push(route);
     }
   };
 
@@ -439,7 +543,7 @@ export default function HomeScreen() {
   const visibleTasks = getVisibleTasks();
 
   // --- Render ---
-  if (isLoading || !epcScores) {
+  if (isLoading) {
     return (
       <Animated.View 
         style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}
@@ -449,7 +553,9 @@ export default function HomeScreen() {
       </Animated.View>
     );
   }
-  const burnout = calculateBurnoutFromScores(epcScores);
+  // If EPC scores are missing (e.g., new user), render with safe defaults
+  const safeScores: EPCScores = epcScores ?? { energy: 50, purpose: 50, connection: 50 };
+  const burnout = calculateBurnoutFromScores(safeScores);
   const stateText = userState ? userState.toLowerCase() : 'balanced';
   // --- Main Layout ---
   return (
@@ -470,10 +576,10 @@ export default function HomeScreen() {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              if (epcScores) {
+              if (safeScores) {
                 router.push({
                   pathname: '/epc-explanation-profile',
-                  params: { scores: JSON.stringify(epcScores) }
+                  params: { scores: JSON.stringify(safeScores) }
                 });
               }
             }}
@@ -484,13 +590,13 @@ export default function HomeScreen() {
               colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
               style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}
             >
-              <Text style={styles.profileInitials}>EK</Text>
+              <Text style={styles.profileInitials}>{profileInitials || 'U'}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {/* Enhanced EPC Display */}
-        <EnhancedEPCDisplay scores={epcScores} />
+        <EnhancedEPCDisplay scores={safeScores} />
 
         {/* Retake Assessment Card */}
         <TouchableOpacity style={styles.retakeCardContainer} onPress={handleRetakeAssessment} activeOpacity={0.8}>
@@ -513,9 +619,11 @@ export default function HomeScreen() {
           <View style={styles.toolRecommendationContent}>
             <View style={styles.toolTextContent}>
               <Text style={styles.recommendationTitle}>Reset with the</Text>
-              <Text style={styles.recommendationTool}>"CHIEFF" tool</Text>
+              <Text style={styles.recommendationTool}>
+                "{recommendedTool ? recommendedTool.name : 'CHIEFF'}" tool
+              </Text>
               <Text style={styles.recommendationSubtitle}>today</Text>
-              <TouchableOpacity style={styles.goToToolButton}>
+              <TouchableOpacity style={styles.goToToolButton} onPress={handleGoToTool}>
                 <Text style={styles.goToToolText}>Go to Tool</Text>
               </TouchableOpacity>
             </View>

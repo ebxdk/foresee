@@ -1,8 +1,9 @@
-import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import dotenv from 'dotenv';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import path from 'path';
 import authRoutes from './routes/auth';
 
 // Load environment variables
@@ -41,6 +42,9 @@ app.use(limiter);
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static assets (for email images)
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

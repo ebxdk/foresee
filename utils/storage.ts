@@ -3,7 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateBurnoutFromScores } from './burnoutCalc';
-import { EPCScores } from './epcScoreCalc';
+import { EPCScores, calculateEPCFromCapacityAssessment, calculateEPCScores } from './epcScoreCalc';
 import { ErrorHandler } from './errorHandler';
 import {
     getCurrentSleepStatus,
@@ -264,14 +264,42 @@ export async function storeEPCScores(scores: EPCScores): Promise<void> {
 export async function getEPCScores(): Promise<EPCScores | null> {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.EPC_SCORES);
-    if (!data) return null;
+    if (data) {
+      const parsed = JSON.parse(data);
+      return {
+        energy: parsed.energy,
+        purpose: parsed.purpose,
+        connection: parsed.connection
+      };
+    }
+
+    // Attempt to rebuild scores from stored onboarding or capacity answers
+    const [onboardingData, capacityData] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_ANSWERS),
+      AsyncStorage.getItem('capacity_answers')
+    ]);
+
+    if (onboardingData) {
+      const parsed = JSON.parse(onboardingData);
+      const answers: number[] | undefined = parsed?.answers;
+      if (Array.isArray(answers) && answers.length === 5 && answers.every(value => typeof value === 'number')) {
+        const rebuiltScores = calculateEPCScores(answers);
+        await storeEPCScores(rebuiltScores);
+        return rebuiltScores;
+      }
+    }
+
+    if (capacityData) {
+      const parsed = JSON.parse(capacityData);
+      const answers: string[] | undefined = parsed?.answers;
+      if (Array.isArray(answers) && answers.length === 10 && answers.every(value => typeof value === 'string' && value.length > 0)) {
+        const rebuiltScores = calculateEPCFromCapacityAssessment(answers);
+        await storeEPCScores(rebuiltScores);
+        return rebuiltScores;
+      }
+    }
     
-    const parsed = JSON.parse(data);
-    return {
-      energy: parsed.energy,
-      purpose: parsed.purpose,
-      connection: parsed.connection
-    };
+    return null;
   } catch (error) {
     console.error('Error retrieving EPC scores:', error);
     return null;

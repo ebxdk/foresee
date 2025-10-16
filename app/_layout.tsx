@@ -1,32 +1,87 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Asset } from 'expo-asset';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { registerDecayBackgroundFetch } from '../utils/backgroundTasks';
 import { QuestionnaireProvider } from '../utils/QuestionnaireContext';
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
 
   useEffect(() => {
     // Register background fetch task that runs decay/score tails
     registerDecayBackgroundFetch();
   }, []);
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
+  // Preload image assets during splash
+  useEffect(() => {
+    const loadAssets = async () => {
+      try {
+        const imageAssets = [
+          require('../assets/images/8CDE2926-8B4A-44A9-84DC-18DD2CB81594-removebg-preview 2.png'),
+          require('../assets/images/Capcity_Creator_Logo_copy-removebg-preview.png'),
+          require('../assets/images/yearRecap.png'),
+          require('../assets/images/gourmet-almond-1.png'),
+          require('../assets/images/9916415.png'),
+          require('../assets/images/hummus.png'),
+          require('../assets/images/wholeGrainCrackers.png'),
+          require('../assets/images/2646928.png'),
+          require('../assets/images/6113369.png'),
+          require('../assets/images/6113506.png'),
+          require('../assets/images/flax.png'),
+          require('../assets/images/chiaseeds.png'),
+          require('../assets/images/pumpkinSeed.png'),
+          require('../assets/images/cottageCheese.png'),
+          require('../assets/images/sunflowerseeds.png'),
+          require('../assets/images/pistacio.png'),
+          require('../assets/images/dates.png'),
+          require('../assets/images/avatar.png'),
+          require('../assets/images/toolsimg2.png'),
+          require('../assets/images/toolsimg.png'),
+          require('../assets/images/splash-icon.png'),
+          require('../assets/images/react-logo@3x.png'),
+          require('../assets/images/react-logo@2x.png'),
+          require('../assets/images/react-logo.png'),
+          require('../assets/images/partial-react-logo.png'),
+          require('../assets/images/favicon.png'),
+          require('../assets/images/adaptive-icon.png'),
+        ];
+
+        await Promise.all(imageAssets.map(src => Asset.fromModule(src).downloadAsync()));
+        setAssetsLoaded(true);
+      } catch (e) {
+        console.warn('Asset preload failed', e);
+        setAssetsLoaded(true); // proceed even if some assets fail
+      }
+    };
+
+    loadAssets();
+  }, []);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (loaded && assetsLoaded) {
+      await SplashScreen.hideAsync();
+    }
+  }, [loaded, assetsLoaded]);
+
+  if (!loaded || !assetsLoaded) {
+    return null; // Keep splash visible
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <QuestionnaireProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack screenOptions={{ headerShown: false }}>
@@ -154,6 +209,14 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen 
+              name="subscription" 
+              options={{
+                headerShown: false,
+                gestureEnabled: true,
+                gestureDirection: 'horizontal',
+              }}
+            />
+            <Stack.Screen 
               name="quotes" 
               options={{
                 headerShown: false,
@@ -161,6 +224,14 @@ export default function RootLayout() {
                 gestureDirection: 'horizontal',
               }}
             />
+          <Stack.Screen 
+            name="spotify-diagnostics" 
+            options={{
+              headerShown: false,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
             <Stack.Screen name="onboarding" />
             <Stack.Screen name="connect-apps" />
             <Stack.Screen name="loading" />

@@ -1,11 +1,40 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Path, Rect, Text as SvgText } from 'react-native-svg';
+import { getUserState } from '../../utils/storage';
 
 // All tools are now pages, no modal imports needed
+
+// Tool state mapping based on TOOL_CONFIG
+const toolStateMapping: { [key: string]: 'Maximized' | 'Reserved' | 'Indulgent' | 'Fatigued' } = {
+  // Fatigued tools
+  'HydrationHero': 'Fatigued',
+  'PostItPriority': 'Fatigued',
+  'OxygenMask': 'Fatigued',
+  'NourishmentCheck': 'Fatigued',
+  'PhoneFreePause': 'Fatigued',
+  
+  // Indulgent tools
+  'PleasurePlaylist': 'Indulgent',
+  'MentalUnload': 'Indulgent',
+  'ConnectionSpark': 'Indulgent',
+  'SweetSpotScan': 'Indulgent',
+  
+  // Reserved tools
+  'BoundaryBuilder': 'Reserved',
+  'ScheduleScrub': 'Reserved',
+  'EnergyBudgetCheck': 'Reserved',
+  'GratitudeGuardrail': 'Reserved',
+  
+  // Maximized tools
+  'CapacityAudit': 'Maximized',
+  'RecoveryRitual': 'Maximized',
+  'TeachItForward': 'Maximized',
+  'AimReview': 'Maximized',
+};
 
 const toolsData = [
   // Fatigued
@@ -297,7 +326,32 @@ const toolsData = [
 ];
 
 export default function ToolsScreen() {
-  // No longer need activeModal state since all tools are pages
+  const [userState, setUserState] = useState<'Maximized' | 'Reserved' | 'Indulgent' | 'Fatigued' | null>(null);
+  const [filteredTools, setFilteredTools] = useState(toolsData);
+
+  useEffect(() => {
+    const loadUserState = async () => {
+      try {
+        const state = await getUserState();
+        setUserState(state);
+        
+        // Filter tools based on user state
+        if (state) {
+          const filtered = toolsData.filter(tool => toolStateMapping[tool.id] === state);
+          setFilteredTools(filtered);
+        } else {
+          // If no user state, show all tools
+          setFilteredTools(toolsData);
+        }
+      } catch (error) {
+        console.error('Error loading user state:', error);
+        // Fallback to showing all tools
+        setFilteredTools(toolsData);
+      }
+    };
+
+    loadUserState();
+  }, []);
   
   const handleToolPress = (toolId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -357,12 +411,14 @@ export default function ToolsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Tools</Text>
-          <Text style={styles.subtitle}>Features and accessories that add more comfort, convenience and security to your work.</Text>
+          <Text style={styles.subtitle}>
+            {userState ? `Tools for ${userState} state` : 'Features and accessories that add more comfort, convenience and security to your work.'}
+          </Text>
         </View>
         
         <View style={styles.content}>
           <View style={styles.toolsGrid}>
-            {toolsData.map((tool) => (
+            {filteredTools.map((tool) => (
               <TouchableOpacity
                 key={tool.id}
                 style={styles.toolCard}

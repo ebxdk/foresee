@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, SafeAreaView, StatusBar } from 'react-native';
+import { useState } from 'react';
+import { Alert, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import EmailInputScreen from '../components/EmailInputScreen';
 import { ApiService } from '../services/ApiService';

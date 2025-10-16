@@ -1,9 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dimensions, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
+import { getValidAccessToken, signInWithSpotify } from '../services/spotifyAuth';
+import { spotifyRemote } from '../services/SpotifyRemote';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
@@ -12,38 +14,52 @@ interface Quote {
   text: string;
   keywords: string[];
   gradientColors: string[];
+  spotifyUri: string; // spotify:track:...
+  startMs: number; // where to start playback
 }
+
+const DEFAULT_TRACK_URI = 'spotify:track:3ZCTVFBt2Brf31RLEnCkWJ'; // Example track URI
 
 const quotes: Quote[] = [
   {
     id: 1,
     text: "You were never meant to run on empty.",
     keywords: ["empty"],
-    gradientColors: ['#FF6B6B', '#FF8E8E']
+    gradientColors: ['#FF6B6B', '#FF8E8E'],
+    spotifyUri: DEFAULT_TRACK_URI,
+    startMs: 2000
   },
   {
     id: 2,
     text: "Every yes costs something.",
     keywords: ["yes"],
-    gradientColors: ['#4ECDC4', '#6ED4D2']
+    gradientColors: ['#4ECDC4', '#6ED4D2'],
+    spotifyUri: DEFAULT_TRACK_URI,
+    startMs: 2000
   },
   {
     id: 3,
     text: "Your capacity is elastic, not infinite.",
     keywords: ["elastic", "infinite"],
-    gradientColors: ['#45B7D1', '#6BC5E0']
+    gradientColors: ['#45B7D1', '#6BC5E0'],
+    spotifyUri: DEFAULT_TRACK_URI,
+    startMs: 2000
   },
   {
     id: 4,
     text: "You need permission to pause.",
     keywords: ["permission", "pause"],
-    gradientColors: ['#9B59B6', '#B06AC1']
+    gradientColors: ['#9B59B6', '#B06AC1'],
+    spotifyUri: DEFAULT_TRACK_URI,
+    startMs: 2000
   },
   {
     id: 5,
     text: "Burnout starts with a flicker.",
     keywords: ["Burnout", "flicker"],
-    gradientColors: ['#F39C12', '#F7B32B']
+    gradientColors: ['#F39C12', '#F7B32B'],
+    spotifyUri: DEFAULT_TRACK_URI,
+    startMs: 2000
   }
 ];
 
@@ -51,6 +67,30 @@ export default function QuotesPage() {
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
+
+  // Ensure Spotify auth before attempting App Remote
+  useEffect(() => {
+    let mounted = true;
+    const initAuth = async () => {
+      const existing = await getValidAccessToken();
+      if (!existing) {
+        await signInWithSpotify([
+          'app-remote-control',
+          'user-modify-playback-state',
+          'user-read-playback-state',
+          'user-read-email',
+          'user-read-private',
+        ]);
+      }
+      if (mounted) setAuthReady(true);
+    };
+    initAuth();
+    return () => {
+      mounted = false;
+      spotifyRemote.pause().catch(() => {});
+    };
+  }, []);
 
   const renderQuoteText = (quote: Quote) => {
     const words = quote.text.split(' ');
@@ -90,10 +130,17 @@ export default function QuotesPage() {
     </LinearGradient>
   );
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+  const onViewableItemsChanged = useRef(async ({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
-      setCurrentIndex(viewableItems[0].index);
+      const index = viewableItems[0].index as number;
+      setCurrentIndex(index);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const item: Quote = quotes[index];
+      if (authReady && item?.spotifyUri) {
+        await spotifyRemote.playUriAt(item.spotifyUri, item.startMs).catch(() => {});
+      }
+    } else {
+      await spotifyRemote.pause().catch(() => {});
     }
   });
 
@@ -128,7 +175,7 @@ export default function QuotesPage() {
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={{
-          itemVisiblePercentThreshold: 50,
+          itemVisiblePercentThreshold: 90,
         }}
         getItemLayout={(data, index) => ({
           length: screenHeight,

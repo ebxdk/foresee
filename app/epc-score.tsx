@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateWellnessTasks } from '../utils/aiTaskGenerator';
 import { EPCScores } from '../utils/epcScoreCalc';
 import { getEPCScores, getUserState, shouldRegenerateTasks, storeDailyTasks } from '../utils/storage';
@@ -159,7 +160,7 @@ export default function EPCScorePage() {
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/(tabs)/home');
+    router.replace('/subscription' as any);
   };
 
   const ScoreBar = ({ 

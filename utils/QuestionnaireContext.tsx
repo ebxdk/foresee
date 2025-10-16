@@ -1,4 +1,4 @@
-import React, { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useState } from 'react';
 
 interface QuestionnaireContextType {
   answers: string[];
@@ -11,15 +11,17 @@ const QuestionnaireContext = createContext<QuestionnaireContextType | undefined>
 export function QuestionnaireProvider({ children }: { children: ReactNode }) {
   const [answers, setAnswers] = useState<string[]>(new Array(10).fill(''));
 
-  const setAnswer = (questionIndex: number, answer: string) => {
-    const newAnswers = [...answers];
-    newAnswers[questionIndex] = answer;
-    setAnswers(newAnswers);
-  };
+  const setAnswer = useCallback((questionIndex: number, answer: string) => {
+    setAnswers(prevAnswers => {
+      const newAnswers = [...prevAnswers];
+      newAnswers[questionIndex] = answer;
+      return newAnswers;
+    });
+  }, []);
 
-  const clearAnswers = () => {
+  const clearAnswers = useCallback(() => {
     setAnswers(new Array(10).fill(''));
-  };
+  }, []);
 
   return (
     <QuestionnaireContext.Provider value={{ answers, setAnswer, clearAnswers }}>

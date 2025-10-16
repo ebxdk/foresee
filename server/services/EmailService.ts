@@ -1,18 +1,43 @@
 // EmailService.ts - Server-side email service using Replit Mail integration
-import { sendEmail, type SmtpMessage } from '../../src/utils/replitmail';
+import { sendEmail } from '../../src/utils/replitmail';
 
 export class EmailService {
+  /**
+   * Get the base URL for assets based on environment
+   */
+  private static getAssetBaseUrl(): string {
+    if (process.env.NODE_ENV === 'production') {
+      // Use your production domain
+      return process.env.API_BASE_URL || 'https://your-domain.com';
+    }
+    
+    // Development - use Replit or localhost
+    const replitDomain = process.env.REPLIT_DEV_DOMAIN;
+    if (replitDomain) {
+      return `https://${replitDomain}:8080`;
+    }
+    
+    return 'http://localhost:8080';
+  }
+
+  /**
+   * Get the logo image URL
+   */
+  private static getLogoUrl(): string {
+    return `${this.getAssetBaseUrl()}/assets/images/foreseelogoimg.png`;
+  }
   /**
    * Send verification code email to user
    */
   static async sendVerificationEmail(email: string, code: string, name?: string): Promise<boolean> {
     try {
       const greeting = name ? `Hi ${name}!` : 'Hi there!';
+      const logoUrl = this.getLogoUrl();
       
       const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
-          <div style="text-align: center; margin-bottom: 40px;">
-            <h1 style="font-size: 32px; font-weight: 700; color: #000000; margin: 0;">Foresee.</h1>
+          <div style="text-align: center; margin-bottom: 24px;">
+            <img src="${logoUrl}" alt="Foresee" style="height: 100px; width: auto;" />
           </div>
           
           <div style="background-color: #f8f9fa; border-radius: 16px; padding: 32px; margin-bottom: 32px;">
@@ -22,7 +47,7 @@ export class EmailService {
             </p>
             
             <div style="text-align: center; margin: 32px 0;">
-              <div style="background-color: #000000; color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: 8px; padding: 20px 32px; border-radius: 12px; display: inline-block; font-family: monospace;">
+               <div style="background-color: #000000; color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: 8px; padding: 20px 32px; border-radius: 12px; display: inline-block; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;">
                 ${code}
               </div>
             </div>
@@ -68,10 +93,12 @@ Foresee - Track your wellbeing in real-time`;
    */
   static async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
     try {
+      const logoUrl = this.getLogoUrl();
+      
       const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
-          <div style="text-align: center; margin-bottom: 40px;">
-            <h1 style="font-size: 32px; font-weight: 700; color: #000000; margin: 0;">Foresee.</h1>
+          <div style="text-align: center; margin-bottom: 24px;">
+            <img src="${logoUrl}" alt="Foresee" style="height: 100px; width: auto;" />
           </div>
           
           <div style="background-color: #f8f9fa; border-radius: 16px; padding: 32px;">
@@ -130,3 +157,4 @@ Foresee - Track your wellbeing in real-time`;
     }
   }
 }
+
