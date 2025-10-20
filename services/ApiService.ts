@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
+  userMessage?: string;
   user?: T;
   token?: string;
 }
@@ -122,6 +123,7 @@ export class ApiService {
         return {
           success: false,
           message: data.message || `HTTP ${response.status}: ${response.statusText}`,
+          userMessage: data.userMessage,
         };
       }
 

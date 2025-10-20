@@ -62,7 +62,25 @@ export default function PasswordSetupPage() {
           ]
         );
       } else {
-        Alert.alert('Account Creation Failed', result.message);
+        // Check if user already has an account
+        if (result.message === 'ALREADY_REGISTERED') {
+          // Clear signup data since they should login instead
+          await AsyncStorage.removeItem('auth_signup_data');
+          
+          Alert.alert(
+            'Account Already Exists',
+            result.userMessage || 'Looks like you already have an account! Please log in instead.',
+            [
+              {
+                text: 'Go to Login',
+                onPress: () => router.push('/login'),
+                style: 'default'
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Account Creation Failed', result.message);
+        }
       }
     } catch (error) {
       console.error('Account creation error:', error);

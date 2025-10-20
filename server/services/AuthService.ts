@@ -21,6 +21,7 @@ export interface SafeUser {
 export interface AuthResult {
   success: boolean;
   message: string;
+  userMessage?: string;
   user?: SafeUser;
   token?: string;
 }
@@ -223,7 +224,8 @@ export class AuthService {
       if (emailExists) {
         return { 
           success: false, 
-          message: 'This email is already registered.' 
+          message: 'ALREADY_REGISTERED',
+          userMessage: 'Looks like you already have an account! Please log in instead.' 
         };
       }
 
