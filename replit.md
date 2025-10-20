@@ -34,6 +34,7 @@ Preferred communication style: Simple, everyday language.
 ### Authentication & User Management
 - **Onboarding Flow**: Multi-step user registration with email verification
 - **API Service**: Backend integration ready with user management endpoints
+- **Duplicate Account Handling**: Friendly error handling when users try to sign up with an existing email - redirects to login with clear messaging
 - **OAuth Setup**: Configuration files for Google, Microsoft, Slack, and other third-party integrations
 
 ### Background Services
