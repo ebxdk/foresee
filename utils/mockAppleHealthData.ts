@@ -86,6 +86,10 @@ export interface AppleHealthData {
   
   // Timestamp
   lastUpdated: Date;
+  
+  // Data source validation
+  source: 'real' | 'mock';
+  permissionsGranted: boolean;
 }
 
 /**
@@ -242,6 +246,8 @@ export function generateMockAppleHealthData(): AppleHealthData {
     },
     
     lastUpdated: now,
+    source: 'mock' as const,
+    permissionsGranted: false,
   };
 }
 

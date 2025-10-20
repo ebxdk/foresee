@@ -4,6 +4,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import AuthGuard from '../../components/AuthGuard';
+
 // SVG Icon components
 const HomeIcon = ({ focused }: { focused: boolean }) => (
   <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -91,74 +93,76 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: styles.tabLabel,
-        tabBarActiveTintColor: '#000000',
-        tabBarInactiveTintColor: '#8E8E93',
-        tabBarBackground: () => <View style={styles.tabBarBackground} />,
-      }}>
-      
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
-        }}
-        listeners={{
-          tabPress: handleTabPress,
-        }}
-      />
-      
-      <Tabs.Screen
-        name="radar"
-        options={{
-          title: 'Radar',
-          tabBarIcon: ({ focused }) => <TabIcon name="radar" focused={focused} />,
-        }}
-        listeners={{
-          tabPress: handleTabPress,
-        }}
-      />
-      
-      <Tabs.Screen
-        name="coach"
-        options={{
-          title: '',
-          tabBarIcon: ({ focused }) => <TabIcon name="coach" focused={focused} />,
-          tabBarLabel: () => null,
-        }}
-        listeners={{
-          tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
-        }}
-      />
-      
-      <Tabs.Screen
-        name="tools"
-        options={{
-          title: 'Tools',
-          tabBarIcon: ({ focused }) => <TabIcon name="tools" focused={focused} />,
-        }}
-        listeners={{
-          tabPress: handleTabPress,
-        }}
-      />
-      
-      <Tabs.Screen
-        name="progress"
-        options={{
-          title: 'Progress',
-          tabBarIcon: ({ focused }) => <TabIcon name="progress" focused={focused} />,
-        }}
-        listeners={{
-          tabPress: handleTabPress,
-        }}
-      />
-      
-    </Tabs>
+    <AuthGuard>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: styles.tabBar,
+          tabBarShowLabel: true,
+          tabBarLabelStyle: styles.tabLabel,
+          tabBarActiveTintColor: '#000000',
+          tabBarInactiveTintColor: '#8E8E93',
+          tabBarBackground: () => <View style={styles.tabBarBackground} />,
+        }}>
+        
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
+          }}
+          listeners={{
+            tabPress: handleTabPress,
+          }}
+        />
+        
+        <Tabs.Screen
+          name="radar"
+          options={{
+            title: 'Radar',
+            tabBarIcon: ({ focused }) => <TabIcon name="radar" focused={focused} />,
+          }}
+          listeners={{
+            tabPress: handleTabPress,
+          }}
+        />
+        
+        <Tabs.Screen
+          name="coach"
+          options={{
+            title: '',
+            tabBarIcon: ({ focused }) => <TabIcon name="coach" focused={focused} />,
+            tabBarLabel: () => null,
+          }}
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
+          }}
+        />
+        
+        <Tabs.Screen
+          name="tools"
+          options={{
+            title: 'Tools',
+            tabBarIcon: ({ focused }) => <TabIcon name="tools" focused={focused} />,
+          }}
+          listeners={{
+            tabPress: handleTabPress,
+          }}
+        />
+        
+        <Tabs.Screen
+          name="progress"
+          options={{
+            title: 'Progress',
+            tabBarIcon: ({ focused }) => <TabIcon name="progress" focused={focused} />,
+          }}
+          listeners={{
+            tabPress: handleTabPress,
+          }}
+        />
+        
+      </Tabs>
+    </AuthGuard>
   );
 }
 

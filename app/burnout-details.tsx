@@ -21,7 +21,7 @@ import { calculateBurnoutFromScores } from '../utils/burnoutCalc';
 import { getGreenToOrangeGradient } from '../utils/colorUtils';
 import { generateSmartForecast } from '../utils/forecastCalc';
 import { convertAppleHealthToEPCAdjustments } from '../utils/mockAppleHealthData';
-import { getEPCScores, getRecentBurnoutLevels } from '../utils/storage';
+import { getEPCScores, getRecentBurnoutLevels, storeBurnoutHistory } from '../utils/storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -49,73 +49,69 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
   try {
     const epcScores = await getEPCScores();
     if (!epcScores) {
-      return generateMockForecast();
+      return buildBaselineForecast();
     }
 
-    const appleHealthData = await getAppleHealthDataOrMock();
-    const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
-    
-    const adjustedScores = {
-      energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
-      purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
-      connection: Math.max(0, Math.min(100, epcScores.connection + healthAdjustments.connectionAdjustment)),
-    };
+    let adjustedScores = { ...epcScores };
+
+    try {
+      const appleHealthData = await getAppleHealthDataOrMock();
+      if (appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
+        const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
+        adjustedScores = {
+          energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
+          purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
+          connection: Math.max(0, Math.min(100, epcScores.connection + healthAdjustments.connectionAdjustment)),
+        };
+        console.log('📊 Burnout details using real HealthKit data for adjustments');
+      } else {
+        console.log('📊 Burnout details using baseline EPC (no real HealthKit data)');
+      }
+    } catch (error) {
+      console.log('⚠️ Burnout details fallback to EPC scores only:', (error as Error).message);
+    }
 
     const todayBurnout = calculateBurnoutFromScores(adjustedScores);
     const recentHistory = await getRecentBurnoutLevels(7);
     const { forecast } = generateSmartForecast(todayBurnout, recentHistory);
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const data: ForecastDay[] = [];
-    const today = new Date();
+    await storeBurnoutHistory(todayBurnout);
 
-    for (let i = 0; i < 10; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      
-      const percentage = Math.round(i === 0 ? todayBurnout : forecast[Math.min(i - 1, forecast.length - 1)]);
-      
-      data.push({
-        day: days[date.getDay()],
-        date: date.getDate().toString(),
-        percentage,
-        fullDate: date,
-        month: months[date.getMonth()],
-        dayOfWeek: days[date.getDay()]
-      });
-    }
-
-    return data;
+    return buildForecastDays(todayBurnout, forecast);
   } catch (error) {
     console.error('Error generating extended forecast:', error);
-    return generateMockForecast();
+    return buildBaselineForecast();
   }
 };
 
-const generateMockForecast = (): ForecastDay[] => {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const buildForecastDays = (todayBurnout: number, forecast: number[]): ForecastDay[] => {
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const data: ForecastDay[] = [];
-  const today = new Date();
+  const truncatedForecast = forecast.slice(0, 9);
+  const values = [todayBurnout, ...truncatedForecast];
+  const startDate = new Date();
 
-  for (let i = 0; i < 10; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-    
-    const percentage = Math.floor(Math.random() * 80) + 10;
-    
-    data.push({
-      day: days[date.getDay()],
+  return values.map((value, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+
+    const percentage = Math.round(Math.max(0, Math.min(100, value)));
+
+    return {
+      day: daysOfWeek[date.getDay()],
       date: date.getDate().toString(),
       percentage,
       fullDate: date,
       month: months[date.getMonth()],
-      dayOfWeek: days[date.getDay()]
-    });
-  }
+      dayOfWeek: daysOfWeek[date.getDay()]
+    };
+  });
+};
 
-  return data;
+const buildBaselineForecast = (): ForecastDay[] => {
+  const baselineBurnout = 50;
+  const baselineForecast = Array(9).fill(baselineBurnout);
+  return buildForecastDays(baselineBurnout, baselineForecast);
 };
 
 // Replace generateHourlyDataForSelectedDay with the exact same data as radar page

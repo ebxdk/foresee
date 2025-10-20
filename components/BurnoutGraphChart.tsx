@@ -17,6 +17,9 @@ interface BurnoutDataPoint {
   value: number;
   label: string;
   hasData: boolean; // Indicates if this data point has real data
+  confidence?: number; // Forecast confidence for this point
+  uncertainty?: number; // Uncertainty range
+  isForecast?: boolean; // Whether this is a forecasted point
 }
 
 interface BurnoutGraphChartProps {
@@ -54,14 +57,6 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
   // Helper to get X position for a data point based on its original index and selected period
   const getXPositionForDataPoint = (dataPoint: BurnoutDataPoint, index: number) => {
-    // Only log for debugging specific issues - remove in production
-    if (__DEV__ && index < 3) {
-      if (selectedPeriod === 'Today') {
-        console.log(`📍 POS: ${selectedPeriod}[${index}] - ${dataPoint.hour}:${dataPoint.minute}`);
-      } else {
-        console.log(`📍 POS: ${selectedPeriod}[${index}] - ${dataPoint.label}`);
-      }
-    }
     
     let xPos = paddingLeft;
     if (selectedPeriod === 'Today') {
@@ -71,7 +66,6 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
         xPos += (totalMinutes / 1439) * graphWidth; // Use 1439 (0-1439 = 1440 minutes)
       } else {
         // Fallback if hour/minute are unexpectedly missing for 'Today'
-        if (__DEV__) console.warn('⚠️ POS: Missing hour/minute for Today data point.', dataPoint);
         xPos += (index / Math.max(currentData.length - 1, 1)) * graphWidth; // Fallback to index-based scaling
       }
     } else {
@@ -105,32 +99,13 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
   // Use the data prop directly, as filtering for 'Today' is handled upstream
   const currentData = data;
   
-  // Debug: Log data for troubleshooting - inspect sanitized dataset per period to avoid false mismatches
-  if (__DEV__) {
-    const datasetForPeriod = selectedPeriod === 'Today'
-      ? currentData
-      : selectedPeriod === 'Week'
-        ? (typeof getWeekRenderData === 'function' ? getWeekRenderData() : currentData.filter(item => item.hasData))
-        : selectedPeriod === 'Month'
-          ? (typeof getMonthRenderData === 'function' ? getMonthRenderData() : currentData.filter(item => item.hasData))
-          : currentData.filter(item => item.hasData);
-
-    if (datasetForPeriod.length > 0) {
-      const hasTimeData = datasetForPeriod[0].hour !== undefined;
-      const shouldHaveTimeData = selectedPeriod === 'Today';
-      if (hasTimeData !== shouldHaveTimeData) {
-        console.warn(`🚨 DATA MISMATCH: ${selectedPeriod} has ${hasTimeData ? 'time' : 'label'} data (${datasetForPeriod.length} points)`);
-        console.log(`🎯 First:`, datasetForPeriod[0]);
-        console.log(`🎯 Last:`, datasetForPeriod[datasetForPeriod.length - 1]);
-      } else {
-        console.log(`✅ DATA OK: ${selectedPeriod} - ${datasetForPeriod.length} points`);
-      }
-    }
+  // Minimal debug logging
+  if (__DEV__ && currentData.length === 0) {
+    console.warn(`No data for ${selectedPeriod}`);
   }
 
   // If no data, render a helpful placeholder
   if (currentData.length === 0) {
-    console.log('📊 RENDER: No data to render - showing placeholder');
     return (
       <View style={{ width: chartWidth, height: chartHeight, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ color: '#9CA3AF', fontSize: 16 }}>No data available</Text>
@@ -138,8 +113,6 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
       </View>
     );
   }
-  
-  if (__DEV__) console.log(`📊 RENDER: ${selectedPeriod} chart - ${currentData.length} points`);
   
   // Calculate average color for gradient
   const dataWithActualValues = currentData.filter(item => item.hasData);
@@ -149,16 +122,12 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
   // Enhanced line path generation with smooth curves for Today/Week view
   const generateLinePath = () => {
-    if (__DEV__) console.log(`🎯 PATH: Generating for ${selectedPeriod} - ${currentData.length} total points`);
-    
     // For Today, draw a continuous path using all points (synthetic + real)
     const validData = selectedPeriod === 'Today'
       ? currentData
       : (selectedPeriod === 'Week' ? getWeekRenderData() : (selectedPeriod === 'Month' ? getMonthClippedData() : currentData.filter(item => item.hasData)));
-    if (__DEV__) console.log(`🎯 PATH: ${validData.length} valid data points`);
     
     if (validData.length === 0) {
-      if (__DEV__) console.log(`🎯 PATH: No valid data points, returning empty path`);
       return '';
     }
     
@@ -174,22 +143,19 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
     for (let i = 0; i < currentData.length; i++) {
       const item = currentData[i];
       
-      if (item.hasData && item.value !== undefined && item.value !== null) {
-        const x = getXPositionForDataPoint(item, i);
-        const y = paddingTop + graphHeight - (item.value / 100) * graphHeight;
-        
-        if (__DEV__ && i < 3) console.log(`🎯 Point ${i}: x=${x.toFixed(1)}, y=${y.toFixed(1)}, value=${item.value}`);
-        
-        if (isFirstPoint) {
-          path += `M ${x} ${y}`;
-          isFirstPoint = false;
-        } else {
-          path += ` L ${x} ${y}`;
+        if (item.hasData && item.value !== undefined && item.value !== null) {
+          const x = getXPositionForDataPoint(item, i);
+          const y = paddingTop + graphHeight - (item.value / 100) * graphHeight;
+          
+          if (isFirstPoint) {
+            path += `M ${x} ${y}`;
+            isFirstPoint = false;
+          } else {
+            path += ` L ${x} ${y}`;
+          }
         }
-      }
     }
     
-    if (__DEV__) console.log(`🎯 PATH: Generated with ${validData.length} points`);
     return path;
   };
 
@@ -218,7 +184,6 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
       downsampled.push(data[data.length - 1]);
     }
     
-    if (__DEV__) console.log(`📉 DOWNSAMPLE: ${data.length} → ${downsampled.length} points for Today`);
     return downsampled;
   };
 
@@ -549,6 +514,43 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
     const bottomY = paddingTop + graphHeight;
     path += ` L ${last.x} ${bottomY} L ${first.x} ${bottomY} Z`;
     return path;
+  };
+
+  // Generate forecast uncertainty band for future predictions
+  const generateForecastUncertaintyBand = () => {
+    const forecastData = currentData.filter(item => item.isForecast && item.hasData);
+    if (forecastData.length === 0) return '';
+    
+    let upperPath = '';
+    let lowerPath = '';
+    let isFirstPoint = true;
+    
+    forecastData.forEach((item, index) => {
+      const x = getXPositionForDataPoint(item, index);
+      const baseY = paddingTop + graphHeight - (item.value / 100) * graphHeight;
+      const uncertainty = item.uncertainty || 5; // Default uncertainty
+      
+      const upperY = baseY - (uncertainty / 100) * graphHeight;
+      const lowerY = baseY + (uncertainty / 100) * graphHeight;
+      
+      if (isFirstPoint) {
+        upperPath += `M ${x} ${upperY}`;
+        lowerPath += `M ${x} ${lowerY}`;
+        isFirstPoint = false;
+      } else {
+        upperPath += ` L ${x} ${upperY}`;
+        lowerPath += ` L ${x} ${lowerY}`;
+      }
+    });
+    
+    // Close the band by connecting upper and lower paths
+    const lastX = getXPositionForDataPoint(forecastData[forecastData.length - 1], forecastData.length - 1);
+    const lastBaseY = paddingTop + graphHeight - (forecastData[forecastData.length - 1].value / 100) * graphHeight;
+    const lastUncertainty = forecastData[forecastData.length - 1].uncertainty || 5;
+    const lastUpperY = lastBaseY - (lastUncertainty / 100) * graphHeight;
+    const lastLowerY = lastBaseY + (lastUncertainty / 100) * graphHeight;
+    
+    return upperPath + ` L ${lastX} ${lastLowerY}` + lowerPath.split(' ').reverse().join(' ') + ` Z`;
   };
 
   // Generate gap areas (greyed out sections for missing data)
@@ -905,6 +907,15 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 
           {/* No dotted lines for gaps */}
 
+          {/* Forecast uncertainty bands for future data */}
+          {currentData.some(item => item.isForecast) && (
+            <Path
+              d={generateForecastUncertaintyBand()}
+              fill="rgba(0, 122, 255, 0.1)"
+              stroke="none"
+            />
+          )}
+
           {/* Area fill below the line - Apple Weather style (Today/Week/Month) */}
           {(selectedPeriod === 'Today' || selectedPeriod === 'Week' || selectedPeriod === 'Month') && (
             <Path
@@ -953,7 +964,6 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
             const now = new Date();
             const currentMinutes = now.getHours() * 60 + now.getMinutes();
             const nowX = paddingLeft + (currentMinutes / 1439) * graphWidth;
-            if (__DEV__) console.log(`⏰ NOW: Current time indicator at ${Math.floor(currentMinutes/60)}:${String(currentMinutes%60).padStart(2,'0')}`);
             return (
               <Line
                 x1={nowX}
@@ -1004,10 +1014,11 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
                   key={`isolated-point-${index}`}
                   cx={x}
                   cy={y}
-                  r="4"
+                  r={item.isForecast ? "3" : "4"}
                   fill={color}
-                  stroke="#FFFFFF"
-                  strokeWidth="1.5"
+                  stroke={item.isForecast ? "#007AFF" : "#FFFFFF"}
+                  strokeWidth={item.isForecast ? "2" : "1.5"}
+                  opacity={item.isForecast ? 0.8 : 1}
                 />
               );
             }

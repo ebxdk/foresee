@@ -75,6 +75,9 @@ const HEALTH_ADJUSTMENTS = {
   },
 };
 
+const USE_MOCK_HEALTHKIT =
+  (process.env.EXPO_PUBLIC_USE_MOCK_HEALTHKIT || '').toLowerCase() === 'true';
+
 /**
  * Generate realistic mock health data based on time patterns
  * Simulates actual Apple Health app data with realistic variations
@@ -167,6 +170,8 @@ function generateRealisticHealthData(): HealthData {
       minutesToday,
       sessionsCompleted,
     },
+    source: 'mock' as const,
+    permissionsGranted: false,
   };
 }
 
@@ -175,6 +180,11 @@ function generateRealisticHealthData(): HealthData {
  * In production, this would use actual HealthKit APIs
  */
 export async function getHealthData(): Promise<HealthData | null> {
+  if (!USE_MOCK_HEALTHKIT) {
+    console.log('HealthKit mock data disabled; returning null health data');
+    return null;
+  }
+
   try {
     // Generate realistic mock data for Expo/Replit environment
     const mockData = generateRealisticHealthData();

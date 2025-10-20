@@ -39,14 +39,22 @@ export const DEFAULT_INTERPOLATION_CONFIG: InterpolationConfig = {
  * Generate biometric pattern for a specific time based on health data
  */
 export async function getBiometricPattern(hour: number, minute: number): Promise<BiometricPattern> {
-  const healthData = await getAppleHealthDataOrMock();
   const timeOfDay = hour + minute / 60;
   
-  // Parse health data (mock or real)
-  const sleepQualityMap = { 'Excellent': 90, 'Good': 75, 'Fair': 50, 'Poor': 25 };
-  const sleepQuality = sleepQualityMap[healthData.sleep.sleepQuality as keyof typeof sleepQualityMap] || 70;
-  const activityLevel = (healthData.activityRings?.move?.percentage || 60); // Use activity ring percentage
-  const stressLevel = (healthData.mood?.stressLevel || 3) * 10; // Convert 1-10 scale to 0-100
+  // Safe defaults if HealthKit is unavailable
+  let sleepQuality = 70;      // neutral
+  let activityLevel = 60;     // moderate
+  let stressLevel = 50;       // medium
+
+  try {
+    const healthData = await getAppleHealthDataOrMock();
+    const sleepQualityMap = { 'Excellent': 90, 'Good': 75, 'Fair': 50, 'Poor': 25 };
+    sleepQuality = sleepQualityMap[healthData.sleep.sleepQuality as keyof typeof sleepQualityMap] ?? sleepQuality;
+    activityLevel = Math.max(0, Math.min(300, healthData.activityRings?.move?.percentage ?? activityLevel));
+    stressLevel = Math.round(((healthData.mood?.stressLevel ?? 5) / 10) * 100);
+  } catch (e) {
+    // Use defaults; keep interpolation working without HealthKit
+  }
   
   // Heart rate variability pattern (higher in morning, lower at night)
   const hrvPattern = Math.sin((timeOfDay / 24) * Math.PI * 2) * 20 + 60;

@@ -11,6 +11,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
+    "test:healthkit": "tsx test-healthkit-data.ts",
     "lint": "expo lint",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate"

@@ -9,12 +9,13 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 // Import components and utilities
 import BurnoutForecastWidget from '../../components/BurnoutForecastWidget';
 import BurnoutGraphChart from '../../components/BurnoutGraphChart';
+import ForecastInfluenceCards from '../../components/ForecastInfluenceCards';
 import { getActionablesForWeakestPillar } from '../../utils/actionables';
-import { getAppleHealthDataOrMock, initHealthKit, subscribeToRealtimeHealthChanges } from '../../utils/appleHealth';
+import { getAppleHealthDataOrMock, getHealthAuthorizationDebug, getHealthKitStatus, getHealthReadProbe, getTodayStepsDebug, initHealthKit, resetHealthKitBridgeStatus, subscribeToRealtimeHealthChanges } from '../../utils/appleHealth';
 import { calculateBurnoutFromScores } from '../../utils/burnoutCalc';
 import { getAppleWeatherGradientColor } from '../../utils/colorUtils';
 import { EPCScores } from '../../utils/epcScoreCalc';
-import { generateSmartForecast } from '../../utils/forecastCalc';
+import { generateSmartForecast, generateConfidenceIntervals } from '../../utils/forecastCalc';
 import { MinuteDataManager } from '../../utils/minuteDataManager';
 import { convertAppleHealthToEPCAdjustments } from '../../utils/mockAppleHealthData';
 import { DEFAULT_INTERPOLATION_CONFIG, fillTodayDataGaps } from '../../utils/smartInterpolation';
@@ -75,120 +76,132 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
   try {
     const epcScores = await Storage.getEPCScores();
     if (!epcScores) {
-      return generateMockForecast();
+      console.warn('No EPC scores available, using baseline forecast');
+      return generateBaselineForecast();
+    }
+    
+    // Validate EPC scores
+    const isValidEPC = (scores: any) => {
+      return scores && 
+        Number.isFinite(scores.energy) && scores.energy >= 0 && scores.energy <= 100 &&
+        Number.isFinite(scores.purpose) && scores.purpose >= 0 && scores.purpose <= 100 &&
+        Number.isFinite(scores.connection) && scores.connection >= 0 && scores.connection <= 100;
+    };
+    
+    if (!isValidEPC(epcScores)) {
+      console.error('Invalid EPC scores detected:', epcScores);
+      return generateBaselineForecast();
     }
 
     // Get Apple Health data (real biometric data only) and apply adjustments
     try {
       const appleHealthData = await getAppleHealthDataOrMock();
-      const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
       
-      // Apply health adjustments to EPC scores
-      const adjustedScores = {
-        energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
-        purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
-        connection: Math.max(0, Math.min(100, epcScores.connection + healthAdjustments.connectionAdjustment)),
-      };
+      // Only apply adjustments if real data exists
+      let adjustedScores = epcScores;
+      
+      if (appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
+        const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
+        adjustedScores = {
+          energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
+          purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
+          connection: Math.max(0, Math.min(100, epcScores.connection + healthAdjustments.connectionAdjustment)),
+        };
+        console.log('📊 Using real HealthKit data for forecast adjustments');
+      } else {
+        console.log('📊 Using baseline EPC (no real HealthKit data)');
+      }
 
       const todayBurnout = calculateBurnoutFromScores(adjustedScores);
       const recentHistory = await Storage.getRecentBurnoutLevels(7);
-      const { forecast } = generateSmartForecast(todayBurnout, recentHistory);
+      const { forecast, confidence } = generateSmartForecast(todayBurnout, recentHistory);
 
-      // Store today's burnout for history
       await Storage.storeBurnoutHistory(todayBurnout);
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const data: ForecastDay[] = [];
-    const today = new Date();
+      // Forecast generated successfully
 
-    for (let i = 0; i < 10; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      
-      const percentage = Math.round(i === 0 ? todayBurnout : forecast[Math.min(i - 1, forecast.length - 1)]);
-      
-      data.push({
-        day: days[date.getDay()],
-        date: date.getDate().toString(),
-        percentage,
-        fullDate: date,
-        icon: getBurnoutIcon(percentage),
-        high: Math.min(100, percentage + Math.floor(Math.random() * 10 + 5)),
-        low: Math.max(0, percentage - Math.floor(Math.random() * 10 + 5)),
-      });
-    }
-
-    console.log('Extended forecast generated with Apple Health data:', {
-      todayBurnout: Math.round(todayBurnout),
-      healthAdjustments,
-      appleHealthSummary: {
-        sleep: `${appleHealthData.sleep.hoursSlept}h - ${appleHealthData.sleep.sleepQuality}`,
-        activityRings: `${appleHealthData.activityRings.move.percentage}% • ${appleHealthData.activityRings.exercise.percentage}% • ${appleHealthData.activityRings.stand.percentage}%`,
-        mood: `${appleHealthData.mood.currentMood} (Stress: ${appleHealthData.mood.stressLevel}/10)`,
-      }
-    });
-
-      return data;
+      return buildForecastDays(todayBurnout, forecast, confidence.standardDeviation, confidence);
     } catch (error) {
       // If HealthKit is not available, use raw EPC scores without biometric adjustments
       console.log('⚠️ HealthKit not available for forecast, using raw EPC scores:', (error as Error).message);
       const todayBurnout = calculateBurnoutFromScores(epcScores);
       const recentHistory = await Storage.getRecentBurnoutLevels(7);
-      const { forecast } = generateSmartForecast(todayBurnout, recentHistory);
+      const { forecast, confidence } = generateSmartForecast(todayBurnout, recentHistory);
 
-      // Store today's burnout for history
       await Storage.storeBurnoutHistory(todayBurnout);
 
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const data: ForecastDay[] = [];
-      const today = new Date();
-
-      for (let i = 0; i < 10; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        
-        const percentage = Math.round(i === 0 ? todayBurnout : forecast[Math.min(i - 1, forecast.length - 1)]);
-        
-        data.push({
-          day: days[date.getDay()],
-          date: date.getDate().toString(),
-          percentage,
-          fullDate: date,
-          icon: getBurnoutIcon(percentage),
-          high: Math.min(100, percentage + Math.floor(Math.random() * 10 + 5)),
-          low: Math.max(0, percentage - Math.floor(Math.random() * 10 + 5)),
-        });
-      }
-
-      console.log('Extended forecast generated with raw EPC scores (no HealthKit):', { todayBurnout, forecast });
-      return data;
+      // Forecast generated with EPC scores
+      return buildForecastDays(todayBurnout, forecast, confidence.standardDeviation, confidence);
     }
   } catch (error) {
     console.error('Error generating extended forecast:', error);
-    return generateMockForecast();
+    return generateBaselineForecast();
   }
 };
 
-// Fallback mock data generation
-const generateMockForecast = (): ForecastDay[] => {
+// Build deterministic forecast day data with enhanced confidence intervals
+const buildForecastDays = (
+  todayBurnout: number,
+  forecast: number[],
+  standardDeviation: number,
+  confidence?: ForecastConfidence
+): ForecastDay[] => {
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const truncatedForecast = forecast.slice(0, 9); // Include today + next 9 days
+  const { high, low } = generateConfidenceIntervals(truncatedForecast, standardDeviation);
+  
+  const today = new Date();
+  const values = [todayBurnout, ...truncatedForecast];
+  const highSeries = [todayBurnout, ...high];
+  const lowSeries = [todayBurnout, ...low];
+  
+  return values.map((value, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + index);
+    
+    const percentage = Math.round(Math.max(0, Math.min(100, value)));
+    const highValue = Math.round(Math.max(0, Math.min(100, highSeries[Math.min(index, highSeries.length - 1)])));
+    const lowValue = Math.round(Math.max(0, Math.min(100, lowSeries[Math.min(index, lowSeries.length - 1)])));
+    
+    // Calculate confidence decay over time
+    const confidenceDecay = Math.pow(0.95, index);
+    const dayConfidence = confidence ? Math.round(confidence.score * confidenceDecay) : undefined;
+    const uncertainty = highValue - lowValue;
+    
+    return {
+      day: daysOfWeek[date.getDay()],
+      date: date.getDate().toString(),
+      percentage,
+      fullDate: date,
+      icon: getBurnoutIcon(percentage),
+      high: highValue,
+      low: lowValue,
+      confidence: dayConfidence,
+      uncertainty: uncertainty,
+    };
+  });
+};
+
+// Deterministic baseline forecast when no data available
+const generateBaselineForecast = (): ForecastDay[] => {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const data: ForecastDay[] = [];
   const today = new Date();
+  const baselinePercentage = 50; // Neutral baseline
+  const confidenceRange = 5; // ±5% range for baseline
 
   for (let i = 0; i < 10; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
     
-    const percentage = Math.floor(Math.random() * 80) + 10;
-    
     data.push({
       day: days[date.getDay()],
       date: date.getDate().toString(),
-      percentage,
+      percentage: baselinePercentage,
       fullDate: date,
-      icon: getBurnoutIcon(percentage),
-      high: Math.min(100, percentage + Math.floor(Math.random() * 10 + 5)),
-      low: Math.max(0, percentage - Math.floor(Math.random() * 10 + 5)),
+      icon: getBurnoutIcon(baselinePercentage),
+      high: Math.min(100, baselinePercentage + confidenceRange),
+      low: Math.max(0, baselinePercentage - confidenceRange),
     });
   }
 
@@ -351,8 +364,53 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
     
     return interpolatedData;
   } catch (error) {
+    // If anything fails (often due to HealthKit), gracefully fall back to
+    // base minute data up to the current minute so Today never shows empty.
     console.error('Error generating today minute data:', error);
-    return [];
+    try {
+      const minuteManager = MinuteDataManager.getInstance();
+      const minuteData = await minuteManager.getTodayMinuteData();
+      const now = new Date();
+      const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const fallback: BurnoutDataPoint[] = minuteData.map(point => {
+        const hour = Math.floor(point.minute / 60);
+        const minuteInHour = point.minute % 60;
+        let label = '';
+        if (minuteInHour === 0) {
+          if (hour === 0) label = '12a';
+          else if (hour < 12) label = `${hour}a`;
+          else if (hour === 12) label = '12p';
+          else label = `${hour - 12}p`;
+        }
+        return {
+          hour,
+          minute: minuteInHour,
+          value: point.burnoutPercentage,
+          label,
+          hasData: point.hasRealData || point.source === 'catchup',
+        };
+      });
+
+      while (fallback.length <= currentTotalMinutes) {
+        const totalMinutes = fallback.length;
+        const hour = Math.floor(totalMinutes / 60);
+        const minute = totalMinutes % 60;
+        const lastValue = fallback.length > 0 ? fallback[fallback.length - 1].value : currentBurnout;
+        fallback.push({
+          hour,
+          minute,
+          value: totalMinutes === currentTotalMinutes ? currentBurnout : lastValue,
+          label: '',
+          hasData: totalMinutes <= currentTotalMinutes,
+        });
+      }
+      console.log('ℹ️ Falling back to base minute data (no interpolation)');
+      return fallback;
+    } catch (inner) {
+      console.error('❌ Fallback minute data failed:', inner);
+      return [];
+    }
   }
 };
 
@@ -410,14 +468,14 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
       // If still no data, use intelligent fallback
       if (burnoutValue === null) {
         if (hasAnyRealData && data.length > 0) {
-          // Carry forward from last known day
+          // Carry forward from last known day (deterministic)
           const lastValidValue = data.filter(d => d.hasData).pop()?.value || currentBurnout;
-          burnoutValue = lastValidValue + (Math.random() - 0.5) * 5; // Small variation
+          burnoutValue = lastValidValue; // No variation - use exact value
           console.log(`⚠️ WEEK: FALLBACK (${days[i]}) - Carry forward: ${burnoutValue.toFixed(1)}%`);
         } else {
-          // Use current burnout as baseline
-          burnoutValue = currentBurnout + (Math.random() - 0.5) * 10;
-          console.log(`⚠️ WEEK: FALLBACK (${days[i]}) - Baseline variation: ${burnoutValue.toFixed(1)}%`);
+          // Use current burnout as baseline (deterministic)
+          burnoutValue = currentBurnout;
+          console.log(`⚠️ WEEK: FALLBACK (${days[i]}) - Baseline: ${burnoutValue.toFixed(1)}%`);
         }
       }
 
@@ -434,9 +492,9 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
     return data;
   } catch (error) {
     console.error('❌ WEEK: Error generating weekly data:', error);
-    // Return fallback data instead of empty array
+    // Return deterministic fallback data instead of empty array
     const fallbackData = Array.from({length: 7}, (_, i) => ({
-      value: Math.round(40 + Math.random() * 30),
+      value: 50, // Baseline value
       label: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][i],
       hasData: false
     }));
@@ -532,12 +590,12 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
           hasAnyRealData = true;
           console.log(`📊 MONTH: ${week.label} - Computed from ${computedValues.length} days: ${weekValue}%`);
         } else {
-          // Intelligent fallback
+          // Intelligent fallback (deterministic)
           if (hasAnyRealData && data.length > 0) {
             const lastValidValue = data.filter(d => d.hasData).pop()?.value || 50;
-            weekValue = Math.round(lastValidValue + (Math.random() - 0.5) * 8);
+            weekValue = Math.round(lastValidValue); // No variation
           } else {
-            weekValue = Math.round(45 + Math.random() * 25);
+            weekValue = 50; // Baseline value
           }
           console.log(`⚠️ MONTH: ${week.label} - Fallback value: ${weekValue}%`);
         }
@@ -554,9 +612,9 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
     return data;
   } catch (error) {
     console.error('❌ MONTH: Error generating monthly data:', error);
-    // Return fallback data
+    // Return deterministic fallback data
     const fallbackData = Array.from({length: 5}, (_, i) => ({
-      value: Math.round(45 + Math.random() * 25),
+      value: 50, // Baseline value
       label: `W${i + 1}`,
       hasData: false
     }));
@@ -630,6 +688,7 @@ export default function RadarScreen() {
   const [epcScores, setEpcScores] = useState<EPCScores | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [smartTasks, setSmartTasks] = useState<string[]>([]);
+  const [recentHistory, setRecentHistory] = useState<number[]>([]);
   const [todayBurnout, setTodayBurnout] = useState<number>(0);
   const [selectedPeriod, setSelectedPeriod] = useState<'Today' | 'Week' | 'Month'>('Today');
   const [graphData, setGraphData] = useState<BurnoutDataPoint[]>([]);
@@ -647,14 +706,19 @@ export default function RadarScreen() {
         setIsLoading(true);
       }
       
-      // Load EPC scores and extended forecast data
-      const [scores, extendedForecast] = await Promise.all([
+      // Load EPC scores, recent history, and extended forecast data
+      const [scores, history, extendedForecast] = await Promise.all([
         Storage.getEPCScores(),
+        Storage.getRecentBurnoutLevels(7),
         generateExtendedForecast()
       ]);
       
       setEpcScores(scores);
+      setRecentHistory(history);
       setForecastData(extendedForecast);
+      
+      // Clear graph data cache to force fresh data
+      setGraphDataCache({});
       
       if (scores) {
         // Fetch Apple Health data (real biometric data only)
@@ -715,9 +779,9 @@ export default function RadarScreen() {
       
     } catch (error) {
       console.error('Error loading radar data:', error);
-      // Fallback to mock data
-      setForecastData(generateMockForecast());
-      setTodayBurnout(Math.floor(Math.random() * 80) + 10);
+      // Fallback to baseline data
+      setForecastData(generateBaselineForecast());
+      setTodayBurnout(50); // Baseline value
     } finally {
       if (showLoading) {
         setIsLoading(false);
@@ -875,6 +939,22 @@ export default function RadarScreen() {
         console.log('✅ HealthKit permissions granted');
       } else {
         console.log('⚠️ HealthKit permissions not available (using mock data)');
+        
+        // Check what specific permissions are denied and provide guidance
+        const { checkHealthKitPermissions } = await import('../../utils/appleHealth');
+        const permissionCheck = await checkHealthKitPermissions();
+        
+        if (permissionCheck.needsUserAction) {
+          console.log('🔧 User action needed for HealthKit permissions:');
+          console.log(permissionCheck.guidanceMessage);
+          
+          // You could show an alert or modal here to guide the user
+          // Alert.alert(
+          //   'Health Data Access Required',
+          //   permissionCheck.guidanceMessage,
+          //   [{ text: 'OK' }]
+          // );
+        }
       }
     } catch (error) {
       console.log('⚠️ HealthKit permission request failed:', error);
@@ -951,17 +1031,148 @@ export default function RadarScreen() {
     await loadGraphData();
   };
 
-  // Debug: show current biometric data (real HealthKit data only)
+  // Simple HealthKit status test
+  const handleHealthKitTest = async () => {
+    try {
+      console.log('🧪 Testing HealthKit status...');
+      const status = await getHealthKitStatus();
+      console.log('📊 HealthKit status:', status);
+      
+      Alert.alert(
+        'HealthKit Status Test',
+        `Platform: ${status.platform}\n` +
+        `HealthKit Module: ${status.healthKitModule ? '✅' : '❌'}\n` +
+        `Bridge Status: ${status.bridgeStatus}\n` +
+        `Available: ${status.isAvailable ? '✅' : '❌'}\n` +
+        (status.error ? `Error: ${status.error}` : '')
+      );
+    } catch (error) {
+      console.error('❌ HealthKit test error:', error);
+      Alert.alert('HealthKit Test Error', `Test failed: ${(error as Error).message}`);
+    }
+  };
+
+  // Reset HealthKit bridge status
+  const handleResetHealthKit = async () => {
+    try {
+      console.log('🔄 Resetting HealthKit bridge status...');
+      resetHealthKitBridgeStatus();
+      
+      // Try to reinitialize
+      const success = await initHealthKit();
+      
+      Alert.alert(
+        'HealthKit Reset',
+        `Bridge status reset and reinitialized.\n\nResult: ${success ? '✅ Success' : '❌ Failed'}\n\nTry the test button again.`
+      );
+    } catch (error) {
+      console.error('❌ HealthKit reset error:', error);
+      Alert.alert('HealthKit Reset Error', `Reset failed: ${(error as Error).message}`);
+    }
+  };
+
+  // Debug: show current biometric data + step breakdown (real HealthKit data only)
   const handleShowBiometrics = async () => {
     try {
-      const data = await getAppleHealthDataOrMock();
-      const summary = `Steps: ${data.steps.count}\nExercise min: ${data.activityRings.exercise.current}\nActive energy: ${data.activityRings.move.current} kcal\nSleep: ${data.sleep.hoursSlept}h (${data.sleep.sleepQuality})\nResting HR: ${data.heartRate.resting}\nHRV: ${data.heartRate.hrv}`;
-      // Use Alert without importing anew since React Native Alert is already used elsewhere
-      // @ts-ignore Alert is globally available in this file's scope via RN import cluster above
+      console.log('🔍 Starting HealthKit debug...');
+      
+      // Step 1: Check basic HealthKit availability
+      const { checkHealthKitPermissions } = await import('../../utils/appleHealth');
+      const permissionCheck = await checkHealthKitPermissions();
+      
+      if (!permissionCheck.hasPermissions) {
+        Alert.alert(
+          'HealthKit Permissions Required',
+          permissionCheck.guidanceMessage,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('✅ HealthKit permissions verified');
+      
+      // Step 2: Get authorization debug info first
+      const auth = await getHealthAuthorizationDebug();
+      console.log('📊 Authorization status:', auth);
+      
+      // Step 3: Try to get basic health data
+      let data;
+      try {
+        data = await getAppleHealthDataOrMock();
+        console.log('✅ Health data retrieved successfully');
+      } catch (error) {
+        console.error('❌ Failed to get health data:', error);
+        throw new Error(`Failed to get health data: ${(error as Error).message}`);
+      }
+      
+      // Step 4: Try to get detailed debug info (these might fail)
+      let stepsDebug = null;
+      let probe = null;
+      
+      try {
+        stepsDebug = await getTodayStepsDebug();
+        console.log('✅ Steps debug info retrieved');
+      } catch (error) {
+        console.warn('⚠️ Steps debug failed:', (error as Error).message);
+      }
+      
+      try {
+        probe = await getHealthReadProbe();
+        console.log('✅ Health read probe retrieved');
+      } catch (error) {
+        console.warn('⚠️ Health read probe failed:', (error as Error).message);
+      }
+      
+      // Build summary with available data
+      let summary = `Steps (today): ${data.steps.count}\n`;
+      summary += `Exercise min: ${data.activityRings.exercise.current}\n`;
+      summary += `Active energy: ${data.activityRings.move.current} kcal\n`;
+      summary += `Sleep: ${data.sleep.hoursSlept}h (${data.sleep.sleepQuality})\n`;
+      summary += `Resting HR: ${data.heartRate.resting}\n`;
+      summary += `HRV: ${data.heartRate.hrv}\n\n`;
+      
+      summary += `Bridge: ${auth.bridge} | Available: ${auth.isAvailable}\n`;
+      
+      if (auth.statuses.length > 0) {
+        const authStr = auth.statuses
+          .map(s => `• ${s.type}: ${s.status}`)
+          .join('\n');
+        summary += `Authorization:\n${authStr}\n\n`;
+      }
+      
+      if (stepsDebug) {
+        const startStr = stepsDebug.start.toLocaleString();
+        const endStr = stepsDebug.end.toLocaleString();
+        summary += `Window: ${startStr} → ${endStr}\n`;
+        summary += `Method: ${stepsDebug.method}\n`;
+        
+        if (stepsDebug.perSource.length > 0) {
+          const sourcesStr = stepsDebug.perSource
+            .map(s => `• ${s.source || 'Unknown'}${s.device ? ` (${s.device})` : ''}: ${s.count}`)
+            .join('\n');
+          summary += `By Source:\n${sourcesStr}\n`;
+        }
+      }
+      
+      if (probe) {
+        summary += `Read probe: steps=${probe.stepsToday}, energy=${probe.activeEnergyKcalToday} kcal, exercise=${probe.exerciseMinToday} min, sleep=${probe.sleepLastNightHours} h\n`;
+        if (probe.restingHRMostRecent) {
+          summary += `RHR: ${probe.restingHRMostRecent.value} bpm (${probe.restingHRMostRecent.date})\n`;
+        }
+        if (probe.hrvMostRecentMs) {
+          summary += `HRV: ${probe.hrvMostRecentMs.value} ms (${probe.hrvMostRecentMs.date})\n`;
+        }
+      }
+      
       Alert.alert('Biometrics (real data)', summary);
+      
     } catch (e) {
-      // @ts-ignore
-      Alert.alert('HealthKit Error', `Failed to read biometrics: ${e.message}\n\nPlease ensure:\n• You're on a real iOS device\n• HealthKit permissions are granted\n• App is built with native modules`);
+      console.error('❌ HealthKit debug error:', e);
+      const errorMessage = (e as Error).message;
+      Alert.alert(
+        'HealthKit Error', 
+        `Failed to read biometrics: ${errorMessage}\n\nDebug info:\n• Platform: ${Platform.OS}\n• Error: ${errorMessage}\n\nPlease ensure:\n• You're on a real iOS device\n• HealthKit permissions are granted\n• App is built with native modules`
+      );
     }
   };
 
@@ -986,6 +1197,30 @@ export default function RadarScreen() {
       };
     }, [requestHealthKitPermissions, loadRadarData, loadGraphData])
   );
+
+  // Real-time forecast updates when EPC scores change
+  useEffect(() => {
+    if (epcScores) {
+      const updateForecast = async () => {
+        try {
+          const updatedForecast = await generateExtendedForecast();
+          if (updatedForecast && updatedForecast.length > 0) {
+            setForecastData(updatedForecast);
+            // Forecast updated
+          } else {
+            console.warn('Empty forecast data received, keeping previous forecast');
+          }
+        } catch (error) {
+          console.error('Error updating forecast:', error);
+          // Don't update forecast data on error to maintain stability
+        }
+      };
+      
+      // Debounce forecast updates to avoid excessive recalculations
+      const timeoutId = setTimeout(updateForecast, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [epcScores]);
 
   // Effect to load graph data whenever selectedPeriod or todayBurnout changes
   useEffect(() => {
@@ -1026,6 +1261,11 @@ export default function RadarScreen() {
   const handleForecastWidgetPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/burnout-details');
+  };
+
+  const handleDayPress = (dayIndex: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/forecast-details?dayIndex=${dayIndex}`);
   };
 
   const taskList = smartTasks.length > 0 ? smartTasks : allTasks;
@@ -1124,6 +1364,22 @@ export default function RadarScreen() {
                   <Text style={styles.refreshButtonText}>🔄</Text>
                 </TouchableOpacity>
 
+                {/* HealthKit Test Button */}
+                <TouchableOpacity 
+                  style={styles.debugButton}
+                  onPress={handleHealthKitTest}
+                >
+                  <Text style={styles.debugButtonText}>🔍</Text>
+                </TouchableOpacity>
+
+                {/* HealthKit Reset Button */}
+                <TouchableOpacity 
+                  style={styles.debugButton}
+                  onPress={handleResetHealthKit}
+                >
+                  <Text style={styles.debugButtonText}>🔄</Text>
+                </TouchableOpacity>
+
                 {/* Debug Biometrics Button */}
                 <TouchableOpacity 
                   style={styles.debugButton}
@@ -1203,8 +1459,35 @@ export default function RadarScreen() {
               <BurnoutForecastWidget 
                 data={forecastData}
                 onPress={handleForecastWidgetPress}
+                onDayPress={handleDayPress}
               />
             </View>
+
+            {/* Forecast Influence Cards - Dynamic for Today */}
+            {epcScores && (
+              <View style={styles.influenceSection}>
+                <ForecastInfluenceCards
+                  epcScores={epcScores}
+                  currentBurnout={todayBurnout}
+                  confidence={forecastData.length > 0 ? {
+                    score: forecastData[0]?.confidence || 0,
+                    dataQuality: 'good' as const,
+                    daysAvailable: 7,
+                    variance: 0,
+                    standardDeviation: 0
+                  } : {
+                    score: 0,
+                    dataQuality: 'poor' as const,
+                    daysAvailable: 0,
+                    variance: 0,
+                    standardDeviation: 0
+                  }}
+                  recentHistory={recentHistory}
+                  forecastDay={0}
+                  selectedForecastDay={forecastData[0]}
+                />
+              </View>
+            )}
 
             {/* Bottom spacing */}
             <View style={styles.bottomSpacing} />
@@ -1420,6 +1703,11 @@ const styles = StyleSheet.create({
     maxWidth: 250,
   },
   forecastSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  influenceSection: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,

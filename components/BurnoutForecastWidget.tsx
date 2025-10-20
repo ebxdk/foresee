@@ -14,11 +14,14 @@ interface ForecastDay {
   icon: string;
   high: number;
   low: number;
+  confidence?: number;
+  uncertainty?: number;
 }
 
 interface BurnoutForecastWidgetProps {
   data: ForecastDay[];
   onPress: () => void;
+  onDayPress?: (dayIndex: number) => void;
 }
 
 // Small ring component for each forecast day
@@ -64,7 +67,7 @@ const BurnoutRing: React.FC<{ percentage: number; size: number }> = ({ percentag
   );
 };
 
-const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onPress }) => {
+const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onPress, onDayPress }) => {
   const getBurnoutColor = (percentage: number) => {
     return getGreenToOrangeGradient(percentage);
   };
@@ -88,7 +91,11 @@ const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onP
       <View style={styles.forecastList}>
         {forecastData.map((day, index) => (
           <View key={index}>
-            <View style={styles.forecastRow}>
+            <TouchableOpacity 
+              style={styles.forecastRow}
+              onPress={() => onDayPress?.(index)}
+              activeOpacity={0.7}
+            >
               {/* Day */}
               <View style={styles.dayContainer}>
                 <Text style={[styles.dayText, index === 0 && styles.todayText]}>
@@ -101,9 +108,24 @@ const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onP
                 <BurnoutRing percentage={day.percentage} size={28} />
               </View>
 
-              {/* Burnout percentage bar */}
+              {/* Burnout percentage bar with confidence indicators */}
               <View style={styles.burnoutContainer}>
                 <View style={styles.burnoutBar}>
+                  {/* Confidence interval background */}
+                  {day.high && day.low && (
+                    <View 
+                      style={[
+                        styles.confidenceInterval,
+                        { 
+                          left: `${day.low}%`,
+                          width: `${day.high - day.low}%`,
+                          backgroundColor: getBurnoutColor(day.percentage) + '20'
+                        }
+                      ]} 
+                    />
+                  )}
+                  
+                  {/* Main forecast bar */}
                   <View 
                     style={[
                       styles.burnoutFill,
@@ -114,11 +136,20 @@ const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onP
                     ]} 
                   />
                 </View>
-                <Text style={[styles.burnoutText, { color: getBurnoutColor(day.percentage) }]}>
-                  {day.percentage}%
-                </Text>
+                
+                {/* Percentage with confidence indicator */}
+                <View style={styles.percentageContainer}>
+                  <Text style={[styles.burnoutText, { color: getBurnoutColor(day.percentage) }]}>
+                    {day.percentage}%
+                  </Text>
+                  {day.confidence && (
+                    <Text style={styles.confidenceText}>
+                      {day.confidence}%
+                    </Text>
+                  )}
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
             
             {/* Light grey divider between items (except last item) */}
             {index < forecastData.length - 1 && (
@@ -197,16 +228,34 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 12,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  confidenceInterval: {
+    position: 'absolute',
+    height: '100%',
+    borderRadius: 4,
+    opacity: 0.3,
   },
   burnoutFill: {
     height: '100%',
     borderRadius: 4,
+    position: 'relative',
+    zIndex: 1,
+  },
+  percentageContainer: {
+    alignItems: 'flex-end',
+    minWidth: 60,
   },
   burnoutText: {
-    fontSize: 15, // Reduced from 16 (5% smaller)
+    fontSize: 15,
     fontWeight: '600',
-    width: 44,
     textAlign: 'right',
+  },
+  confidenceText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginTop: 1,
   },
   divider: {
     height: 1,

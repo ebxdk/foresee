@@ -34,10 +34,6 @@ export default function ForeseeLoginScreen() {
     }, 400); // Wait for auth card slide down animation
   };
 
-  const handleDashboardPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(tabs)/home');
-  };
 
   console.log('Render - Auth card:', isAuthCardVisible);
 
@@ -45,15 +41,6 @@ export default function ForeseeLoginScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Dashboard Circle Button */}
-      <TouchableOpacity style={styles.dashboardButton} onPress={handleDashboardPress}>
-        <Svg width={20} height={20} viewBox="0 0 24 24">
-          <Path
-            fill="#FFFFFF"
-            d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"
-          />
-        </Svg>
-      </TouchableOpacity>
 
       {/* Main Content */}
       <View style={styles.content}>
@@ -90,23 +77,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  dashboardButton: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#000000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   content: {
     flex: 1,

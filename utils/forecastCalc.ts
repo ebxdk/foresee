@@ -1,50 +1,130 @@
-// Smart Forecast Calculation Utility
-// Rule-based forecasting system for burnout prediction (No ML/LLM)
+// Deterministic Forecast Calculation Utility
+// EWMA-based forecasting system for burnout prediction
 
 export type TrendType = 'improving' | 'stable' | 'declining';
 
+export interface ForecastConfidence {
+  score: number;        // 0-100%
+  dataQuality: 'excellent' | 'good' | 'fair' | 'poor';
+  daysAvailable: number;
+  variance: number;     // Statistical variance of recent history
+  standardDeviation: number; // Square root of variance
+}
+
+// Constants for forecast model
+const MIN_HISTORY_FOR_FORECAST = 3; // Need 3+ days for trend
+const OPTIMAL_HISTORY_DAYS = 7;      // Best with full week
+const MAX_HISTORY_DAYS = 30;         // Keep last 30 days
+const EWMA_ALPHA = 0.7;              // 70% weight to recent data
+const BASELINE_BURNOUT = 50;         // Neutral baseline when no data
+
+// Enhanced forecast parameters for better accuracy
+const TREND_SENSITIVITY = 1.5;       // How sensitive trend detection is
+const CONFIDENCE_DECAY = 0.95;       // How confidence decreases over time
+const VOLATILITY_THRESHOLD = 10;      // High volatility threshold
+const SEASONAL_ADJUSTMENT = 0.15;    // Seasonal pattern strength
+
+const clampBurnout = (value: number): number => Math.max(0, Math.min(100, value));
+
 /**
- * Generate smart forecast based on current burnout and recent history
- * This is a rule-based system that simulates behavioral trends, not ML
+ * Generate deterministic forecast using EWMA (Exponential Weighted Moving Average)
+ * Same inputs always produce same outputs
  */
 export function generateSmartForecast(
   currentBurnout: number,
   recentHistory: number[] = []
-): { forecast: number[]; trend: TrendType; confidence: number } {
+): { forecast: number[]; trend: TrendType; confidence: ForecastConfidence } {
   
-  // Analyze recent trend (last 7 days)
-  const trend = analyzeTrend(recentHistory, currentBurnout);
-  const volatility = calculateVolatility(recentHistory);
-  
-  // Generate 6-day forecast (excluding today)
-  const forecast: number[] = [];
-  let lastValue = currentBurnout;
-  
-  for (let day = 1; day <= 6; day++) {
-    const forecastValue = calculateDayForecast(lastValue, day, trend, volatility, recentHistory);
-    forecast.push(Math.max(0, Math.min(100, forecastValue)));
-    lastValue = forecastValue;
+  // Enhanced data validation
+  if (!Number.isFinite(currentBurnout) || currentBurnout < 0 || currentBurnout > 100) {
+    console.warn('Invalid currentBurnout value:', currentBurnout, 'using baseline');
+    currentBurnout = BASELINE_BURNOUT;
   }
   
-  // Calculate confidence based on data availability
-  const confidence = Math.min(recentHistory.length / 7, 1) * 100;
+  // Validate recent history
+  const validHistory = recentHistory.filter(val => 
+    Number.isFinite(val) && val >= 0 && val <= 100
+  );
   
-  return { forecast, trend, confidence: Math.round(confidence) };
+  if (validHistory.length !== recentHistory.length) {
+    console.warn('Filtered invalid history values:', {
+      original: recentHistory.length,
+      valid: validHistory.length
+    });
+  }
+  
+  // Data validation - require minimum history
+  if (validHistory.length < MIN_HISTORY_FOR_FORECAST) {
+    return generateBaselineForecast(currentBurnout, validHistory.length);
+  }
+  
+  const boundedHistory = validHistory.slice(-MAX_HISTORY_DAYS);
+  const historyWithCurrent = [...boundedHistory, currentBurnout];
+  
+  // Analyze recent trend and derive confidence from available data
+  const trend = analyzeTrend(boundedHistory, currentBurnout);
+  const confidence = calculateConfidence(historyWithCurrent);
+  
+  // Generate 10-day forecast using EWMA
+  const forecast: number[] = [];
+  const mutableHistory = [...historyWithCurrent];
+  let lastValue = currentBurnout;
+  
+  for (let day = 1; day <= 10; day++) {
+    const forecastValue = calculateEWMAForecast(lastValue, day, trend, mutableHistory);
+    const clampedValue = clampBurnout(forecastValue);
+    forecast.push(clampedValue);
+    mutableHistory.push(clampedValue);
+    lastValue = clampedValue;
+  }
+  
+  return { forecast, trend, confidence };
 }
 
 /**
- * Analyze trend from recent history
+ * Generate baseline forecast when insufficient data
+ */
+function generateBaselineForecast(currentBurnout: number, daysAvailable: number): { 
+  forecast: number[]; 
+  trend: TrendType; 
+  confidence: ForecastConfidence 
+} {
+  const safeCurrent = clampBurnout(Number.isFinite(currentBurnout) ? currentBurnout : BASELINE_BURNOUT);
+  const forecast = Array(10).fill(safeCurrent);
+  const confidence: ForecastConfidence = {
+    score: 0,
+    dataQuality: 'poor',
+    daysAvailable,
+    variance: 0,
+    standardDeviation: 0
+  };
+  
+  return { forecast, trend: 'stable', confidence };
+}
+
+/**
+ * Analyze trend from recent history with enhanced accuracy
  */
 function analyzeTrend(history: number[], current: number): TrendType {
   if (history.length < 2) return 'stable';
   
-  // Calculate trend over last 3-7 days
-  const recentValues = [...history.slice(-3), current];
-  const trendSlope = calculateTrendSlope(recentValues);
+  // Use multiple time windows for more robust trend detection
+  const shortTerm = [...history.slice(-3), current];
+  const mediumTerm = history.length >= 5 ? [...history.slice(-5), current] : shortTerm;
+  const longTerm = history.length >= 7 ? [...history.slice(-7), current] : mediumTerm;
   
-  // Trend thresholds
-  if (trendSlope > 2) return 'declining'; // Burnout increasing
-  if (trendSlope < -2) return 'improving'; // Burnout decreasing
+  // Calculate weighted trend scores
+  const shortSlope = calculateTrendSlope(shortTerm);
+  const mediumSlope = calculateTrendSlope(mediumTerm);
+  const longSlope = calculateTrendSlope(longTerm);
+  
+  // Weighted average with more weight on recent trends
+  const weightedSlope = (shortSlope * 0.5) + (mediumSlope * 0.3) + (longSlope * 0.2);
+  
+  // Enhanced trend thresholds with sensitivity adjustment
+  const threshold = TREND_SENSITIVITY;
+  if (weightedSlope > threshold) return 'declining'; // Burnout increasing
+  if (weightedSlope < -threshold) return 'improving'; // Burnout decreasing
   return 'stable';
 }
 
@@ -78,44 +158,124 @@ function calculateVolatility(history: number[]): number {
 }
 
 /**
- * Calculate forecast for a specific day
+ * Calculate EWMA forecast for a specific day with enhanced accuracy
  */
-function calculateDayForecast(
+function calculateEWMAForecast(
   previousValue: number,
   dayOffset: number,
   trend: TrendType,
-  volatility: number,
   history: number[]
 ): number {
   
-  // Base forecast starts with previous value
-  let forecast = previousValue;
+  // Project next burnout value from historical slope with regression to baseline
+  const projectedFromHistory = projectBurnoutFromHistory(history, previousValue, dayOffset);
   
-  // Apply trend effects (compound over time)
-  const trendEffect = getTrendEffect(trend, dayOffset);
-  forecast += trendEffect;
+  // Enhanced EWMA with adaptive alpha based on data quality
+  const dataQuality = history.length >= 7 ? 1.0 : history.length / 7;
+  const adaptiveAlpha = EWMA_ALPHA * dataQuality;
+  const forecast = adaptiveAlpha * previousValue + (1 - adaptiveAlpha) * projectedFromHistory;
   
-  // Apply behavioral simulation
-  const behaviorEffect = simulateBehaviorPatterns(previousValue, dayOffset, history);
-  forecast += behaviorEffect;
-  
-  // Apply recovery/fatigue dynamics
-  const recoveryEffect = simulateRecoveryDynamics(previousValue, dayOffset, trend);
-  forecast += recoveryEffect;
-  
-  // Add controlled randomness for natural variation
-  const randomEffect = (Math.random() - 0.5) * volatility * 0.3;
-  forecast += randomEffect;
+  // Apply deterministic trend influence with confidence decay
+  const trendEffect = getTrendEffect(trend, dayOffset) * Math.pow(CONFIDENCE_DECAY, dayOffset - 1);
   
   // Apply weekly patterns (weekends vs weekdays)
   const weeklyEffect = getWeeklyPatternEffect(dayOffset);
-  forecast += weeklyEffect;
   
-  return forecast;
+  // Apply behavioral patterns (deterministic)
+  const behaviorEffect = simulateBehaviorPatterns(previousValue, dayOffset, history);
+  
+  // Apply recovery/fatigue dynamics
+  const recoveryEffect = simulateRecoveryDynamics(previousValue, dayOffset, trend);
+  
+  // Apply seasonal adjustments for better long-term accuracy
+  const seasonalEffect = getSeasonalAdjustment(dayOffset, history);
+  
+  // Apply momentum factor for trend continuation
+  const momentumEffect = getMomentumEffect(history, dayOffset);
+  
+  return forecast + trendEffect + weeklyEffect + behaviorEffect + recoveryEffect + seasonalEffect + momentumEffect;
 }
 
 /**
- * Get trend effect based on current trend direction
+ * Deterministically project burnout from recent history
+ */
+function projectBurnoutFromHistory(
+  history: number[],
+  previousValue: number,
+  dayOffset: number
+): number {
+  if (history.length === 0) return previousValue;
+  
+  const window = history.slice(-Math.min(OPTIMAL_HISTORY_DAYS, history.length));
+  if (window.length < 2) return previousValue;
+  
+  const slope = calculateTrendSlope(window);
+  const projected = previousValue + slope;
+  
+  // Gentle regression to baseline to avoid runaway forecasts
+  const reversionStrength = Math.min(dayOffset / 10, 1);
+  const regression = (BASELINE_BURNOUT - projected) * 0.1 * reversionStrength;
+  
+  return projected + regression;
+}
+
+/**
+ * Calculate confidence based on data quality and variance with enhanced accuracy
+ */
+function calculateConfidence(history: number[]): ForecastConfidence {
+  const days = history.length;
+  if (days === 0) {
+    return {
+      score: 0,
+      dataQuality: 'poor',
+      daysAvailable: 0,
+      variance: 0,
+      standardDeviation: 0
+    };
+  }
+
+  const stdDev = calculateVolatility(history);
+  const variance = stdDev * stdDev;
+  
+  // Enhanced confidence calculation with multiple factors
+  let score = Math.min((days / OPTIMAL_HISTORY_DAYS) * 100, 100);
+  
+  // Data consistency factor (lower variance = higher confidence)
+  const consistencyFactor = Math.max(0.3, 1 - (stdDev / VOLATILITY_THRESHOLD));
+  score *= consistencyFactor;
+  
+  // Data recency factor (more recent data = higher confidence)
+  const recencyFactor = Math.min(1.0, 1 + (Math.min(days, 7) - 3) * 0.1);
+  score *= recencyFactor;
+  
+  // Trend stability factor (stable trends = higher confidence)
+  if (days >= 3) {
+    const recentValues = history.slice(-3);
+    const trendStability = 1 - (Math.abs(calculateTrendSlope(recentValues)) / 5);
+    score *= Math.max(0.5, trendStability);
+  }
+  
+  // Ensure score is within bounds
+  score = Math.max(0, Math.min(100, score));
+  
+  // Enhanced data quality determination
+  let dataQuality: 'excellent' | 'good' | 'fair' | 'poor';
+  if (score >= 85 && stdDev < 5) dataQuality = 'excellent';
+  else if (score >= 70 && stdDev < 8) dataQuality = 'good';
+  else if (score >= 50) dataQuality = 'fair';
+  else dataQuality = 'poor';
+  
+  return {
+    score: Math.round(score),
+    dataQuality,
+    daysAvailable: days,
+    variance: Math.round(variance * 100) / 100,
+    standardDeviation: Math.round(stdDev * 100) / 100
+  };
+}
+
+/**
+ * Get trend effect based on current trend direction (deterministic)
  */
 function getTrendEffect(trend: TrendType, dayOffset: number): number {
   const trendMultiplier = Math.pow(0.8, dayOffset - 1); // Diminishing effect over time
@@ -126,7 +286,7 @@ function getTrendEffect(trend: TrendType, dayOffset: number): number {
     case 'declining':
       return 2.0 * trendMultiplier; // Burnout continues to increase
     case 'stable':
-      return 0.2 * (Math.random() - 0.5) * trendMultiplier; // Small random drift
+      return 0; // No drift when stable
   }
 }
 
@@ -220,6 +380,52 @@ function getWeeklyPatternEffect(dayOffset: number): number {
 }
 
 /**
+ * Get seasonal adjustment based on time of year
+ */
+function getSeasonalAdjustment(dayOffset: number, history: number[]): number {
+  const today = new Date();
+  const futureDate = new Date(today.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+  const month = futureDate.getMonth(); // 0-11
+  
+  // Seasonal patterns (Northern Hemisphere)
+  let seasonalEffect = 0;
+  
+  // Winter months (Dec, Jan, Feb) - higher burnout
+  if (month === 11 || month === 0 || month === 1) {
+    seasonalEffect = 1.0;
+  }
+  // Spring months (Mar, Apr, May) - moderate
+  else if (month >= 2 && month <= 4) {
+    seasonalEffect = -0.5;
+  }
+  // Summer months (Jun, Jul, Aug) - lower burnout
+  else if (month >= 5 && month <= 7) {
+    seasonalEffect = -1.0;
+  }
+  // Fall months (Sep, Oct, Nov) - moderate
+  else {
+    seasonalEffect = 0.2;
+  }
+  
+  return seasonalEffect * SEASONAL_ADJUSTMENT;
+}
+
+/**
+ * Get momentum effect based on recent trend strength
+ */
+function getMomentumEffect(history: number[], dayOffset: number): number {
+  if (history.length < 3) return 0;
+  
+  const recentValues = history.slice(-3);
+  const momentum = calculateTrendSlope(recentValues);
+  
+  // Momentum decays over time
+  const momentumDecay = Math.pow(0.8, dayOffset - 1);
+  
+  return momentum * 0.3 * momentumDecay;
+}
+
+/**
  * Generate forecast with health data influence
  */
 export function generateHealthInfluencedForecast(
@@ -266,8 +472,28 @@ export function generateHealthInfluencedForecast(
   return {
     forecast: healthInfluencedForecast,
     trend: baseForecast.trend,
-    confidence: baseForecast.confidence
+    confidence: baseForecast.confidence.score
   };
+}
+
+/**
+ * Generate deterministic confidence intervals for forecast
+ */
+export function generateConfidenceIntervals(
+  forecast: number[],
+  volatility: number
+): { high: number[]; low: number[] } {
+  const confidenceMultiplier = 1.645; // 90% confidence interval
+  
+  const high = forecast.map(value => 
+    Math.min(100, value + (volatility * confidenceMultiplier))
+  );
+  
+  const low = forecast.map(value => 
+    Math.max(0, value - (volatility * confidenceMultiplier))
+  );
+  
+  return { high, low };
 }
 
 /**
@@ -279,6 +505,21 @@ export function generateForecast(
 ): number[] {
   const result = generateSmartForecast(todayBurnout, []);
   return [todayBurnout, ...result.forecast];
+}
+
+/**
+ * Legacy function for backward compatibility - returns confidence as number
+ */
+export function generateForecastWithLegacyConfidence(
+  todayBurnout: number,
+  recentHistory: number[] = []
+): { forecast: number[]; trend: TrendType; confidence: number } {
+  const result = generateSmartForecast(todayBurnout, recentHistory);
+  return {
+    forecast: result.forecast,
+    trend: result.trend,
+    confidence: result.confidence.score
+  };
 }
 
 /**
