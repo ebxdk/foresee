@@ -649,75 +649,115 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.forYouSlider}>
-            <LinearGradient
-              colors={['#FF6B6B', '#FF8E8E']} // Red gradient
-              style={styles.forYouCard}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/quotes');
+              }}
+              activeOpacity={0.8}
             >
-              <View style={styles.quoteContainer}>
-                <Text style={styles.quoteText}>
-                  <Text style={styles.quoteNormal}>You were never meant to run on </Text>
-                  <Text style={styles.quoteKeyword}>empty</Text>
-                  <Text style={styles.quoteNormal}>.</Text>
-                </Text>
-              </View>
-            </LinearGradient>
+              <LinearGradient
+                colors={['#FF6B6B', '#FF8E8E']} // Red gradient
+                style={styles.forYouCard}
+              >
+                <View style={styles.quoteContainer}>
+                  <Text style={styles.quoteText}>
+                    <Text style={styles.quoteNormal}>You were never meant to run on </Text>
+                    <Text style={styles.quoteKeyword}>empty</Text>
+                    <Text style={styles.quoteNormal}>.</Text>
+                  </Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
             
-            <LinearGradient
-              colors={['#4ECDC4', '#6ED4D2']} // Teal gradient
-              style={styles.forYouCard}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/quotes');
+              }}
+              activeOpacity={0.8}
             >
-              <View style={styles.quoteContainer}>
-                <Text style={styles.quoteText}>
-                  <Text style={styles.quoteNormal}>Every </Text>
-                  <Text style={styles.quoteKeyword}>yes</Text>
-                  <Text style={styles.quoteNormal}> costs something.</Text>
-                </Text>
-              </View>
-            </LinearGradient>
+              <LinearGradient
+                colors={['#4ECDC4', '#6ED4D2']} // Teal gradient
+                style={styles.forYouCard}
+              >
+                <View style={styles.quoteContainer}>
+                  <Text style={styles.quoteText}>
+                    <Text style={styles.quoteNormal}>Every </Text>
+                    <Text style={styles.quoteKeyword}>yes</Text>
+                    <Text style={styles.quoteNormal}> costs something.</Text>
+                  </Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
             
-            <LinearGradient
-              colors={['#45B7D1', '#6BC5E0']} // Blue gradient
-              style={styles.forYouCard}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/quotes');
+              }}
+              activeOpacity={0.8}
             >
-              <View style={styles.quoteContainer}>
-                <Text style={styles.quoteText}>
-                  <Text style={styles.quoteNormal}>Your capacity is </Text>
-                  <Text style={styles.quoteKeyword}>elastic</Text>
-                  <Text style={styles.quoteNormal}>, not </Text>
-                  <Text style={styles.quoteKeyword}>infinite</Text>
-                  <Text style={styles.quoteNormal}>.</Text>
-                </Text>
-              </View>
-            </LinearGradient>
+              <LinearGradient
+                colors={['#45B7D1', '#6BC5E0']} // Blue gradient
+                style={styles.forYouCard}
+              >
+                <View style={styles.quoteContainer}>
+                  <Text style={styles.quoteText}>
+                    <Text style={styles.quoteNormal}>Your capacity is </Text>
+                    <Text style={styles.quoteKeyword}>elastic</Text>
+                    <Text style={styles.quoteNormal}>, not </Text>
+                    <Text style={styles.quoteKeyword}>infinite</Text>
+                    <Text style={styles.quoteNormal}>.</Text>
+                  </Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
             
-            <LinearGradient
-              colors={['#9B59B6', '#B06AC1']} // Purple gradient
-              style={styles.forYouCard}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/quotes');
+              }}
+              activeOpacity={0.8}
             >
-              <View style={styles.quoteContainer}>
-                <Text style={styles.quoteText}>
-                  <Text style={styles.quoteNormal}>You need </Text>
-                  <Text style={styles.quoteKeyword}>permission</Text>
-                  <Text style={styles.quoteNormal}> to </Text>
-                  <Text style={styles.quoteKeyword}>pause</Text>
-                  <Text style={styles.quoteNormal}>.</Text>
-                </Text>
-              </View>
-            </LinearGradient>
+              <LinearGradient
+                colors={['#9B59B6', '#B06AC1']} // Purple gradient
+                style={styles.forYouCard}
+              >
+                <View style={styles.quoteContainer}>
+                  <Text style={styles.quoteText}>
+                    <Text style={styles.quoteNormal}>You need </Text>
+                    <Text style={styles.quoteKeyword}>permission</Text>
+                    <Text style={styles.quoteNormal}> to </Text>
+                    <Text style={styles.quoteKeyword}>pause</Text>
+                    <Text style={styles.quoteNormal}>.</Text>
+                  </Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
             
-            <LinearGradient
-              colors={['#F39C12', '#F7B32B']} // Orange gradient
-              style={styles.forYouCard}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/quotes');
+              }}
+              activeOpacity={0.8}
             >
-              <View style={styles.quoteContainer}>
-                <Text style={styles.quoteText}>
-                  <Text style={styles.quoteKeyword}>Burnout</Text>
-                  <Text style={styles.quoteNormal}> starts with a </Text>
-                  <Text style={styles.quoteKeyword}>flicker</Text>
-                  <Text style={styles.quoteNormal}>.</Text>
-                </Text>
-              </View>
-            </LinearGradient>
+              <LinearGradient
+                colors={['#F39C12', '#F7B32B']} // Orange gradient
+                style={styles.forYouCard}
+              >
+                <View style={styles.quoteContainer}>
+                  <Text style={styles.quoteText}>
+                    <Text style={styles.quoteKeyword}>Burnout</Text>
+                    <Text style={styles.quoteNormal}> starts with a </Text>
+                    <Text style={styles.quoteKeyword}>flicker</Text>
+                    <Text style={styles.quoteNormal}>.</Text>
+                  </Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
           </ScrollView>
         </View>
 

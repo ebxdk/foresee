@@ -14,11 +14,11 @@ try {
   if (Platform.OS === 'ios') {
     const healthKitModule = require('@kingstinct/react-native-healthkit');
     HealthKit = healthKitModule.default;
-    console.log('✅ HealthKit module loaded successfully');
+    // console.log('✅ HealthKit module loaded successfully');
   }
 } catch (e) {
-  console.log('❌ HealthKit not available (Expo Go or missing native module), using mock data');
-  console.log('HealthKit import error:', (e as Error).message);
+  // console.log('❌ HealthKit not available (Expo Go or missing native module), using mock data');
+  // console.log('HealthKit import error:', (e as Error).message);
 }
 
 function startOfTodayLocal(): Date {
@@ -54,53 +54,40 @@ function getHealthKitReadIdentifiers(): string[] {
 }
 
 export async function initHealthKit(): Promise<boolean> {
-  console.log('🔍 Initializing HealthKit...');
-  
   // Reset bridge status if it was previously unavailable - try again
   if (bridgeStatus === 'unavailable') {
-    console.log('🔄 Resetting bridge status from unavailable to unknown');
     bridgeStatus = 'unknown';
   }
 
   if (Platform.OS !== 'ios' || !HealthKit) {
-    console.log('❌ HealthKit not available - Platform:', Platform.OS, 'HealthKit module:', !!HealthKit);
     bridgeStatus = 'unavailable';
     return false;
   }
 
   try {
-    console.log('🔍 Checking if HealthKit is available on device...');
     const isAvailable = await HealthKit.isHealthDataAvailable();
     if (!isAvailable) {
-      console.warn('❌ HealthKit not available on this device');
       bridgeStatus = 'unavailable';
       return false;
     }
-    console.log('✅ HealthKit is available on device');
 
     const toRead = getHealthKitReadIdentifiers();
-    console.log('🔍 Requesting authorization for:', toRead);
     await HealthKit.requestAuthorization([], toRead);
-    console.log('✅ Authorization request completed');
     
     // Check if permissions were actually granted
-    console.log('🔍 Checking authorization status...');
     const authDebug = await getHealthAuthorizationDebug();
-    console.log('📊 Authorization debug result:', authDebug);
     
     const hasDeniedPermissions = authDebug.statuses.some(status => status.status === 'sharingDenied');
     
     if (hasDeniedPermissions) {
-      console.warn('❌ Some HealthKit permissions were denied. User needs to enable them in Settings > Health > Data Access & Devices');
       bridgeStatus = 'unavailable';
       return false;
     }
     
-    console.log('✅ HealthKit initialization successful');
     bridgeStatus = 'healthy';
     return true;
   } catch (error) {
-    console.error('❌ HealthKit init error:', error);
+    console.error('HealthKit init error:', error);
     console.error('Error details:', {
       message: (error as Error)?.message,
       stack: (error as Error)?.stack,
@@ -114,23 +101,23 @@ export async function initHealthKit(): Promise<boolean> {
   }
 }
 
-export async function getAppleHealthDataOrMock(): Promise<AppleHealthData> {
-  // Only use real HealthKit data - no mock data fallback
+export async function getAppleHealthDataOrMock(): Promise<AppleHealthData | null> {
+  // Return null if HealthKit is not available instead of throwing errors
   if (Platform.OS !== 'ios') {
-    throw new Error('HealthKit is only available on iOS devices');
+    return null;
   }
 
   if (!HealthKit) {
-    throw new Error('HealthKit module not available - requires native iOS build');
+    return null;
   }
 
   if (bridgeStatus === 'unavailable') {
-    throw new Error(BRIDGE_UNAVAILABLE_MSG);
+    return null;
   }
 
   const ok = await initHealthKit();
   if (!ok) {
-    throw new Error('HealthKit authorization failed - please grant permissions in Settings');
+    return null;
   }
 
   try {

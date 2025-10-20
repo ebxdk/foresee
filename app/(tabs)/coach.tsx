@@ -1,7 +1,9 @@
 // Removed useBottomTabBarHeight import as it's not compatible with Expo Router
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
     Animated,
@@ -21,8 +23,9 @@ import {
     UIManager,
     View
 } from 'react-native';
-import ReanimatedAnimated, { FadeIn } from 'react-native-reanimated';
 import { convertToOpenAIMessages, getChatCompletionStream } from '../../services/openai';
+import { EPCScores } from '../../utils/epcScoreCalc';
+import * as Storage from '../../utils/storage';
 
 interface Message {
   id: string;
@@ -57,7 +60,12 @@ export default function CoachScreen() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [userName, setUserName] = useState<string>('');
+  const [profileInitials, setProfileInitials] = useState<string>('');
+  const [epcScores, setEpcScores] = useState<EPCScores | null>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  
+  const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const typingAnimation = useRef(new Animated.Value(0)).current;
   const sidebarAnimation = useRef(new Animated.Value(0)).current;
@@ -112,6 +120,16 @@ export default function CoachScreen() {
         clearTimeout(userScrollEndTimeout.current);
       }
     };
+  }, []);
+
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await loadUserData();
+      await loadEPCScores();
+    };
+    
+    loadInitialData();
   }, []);
 
   const dismissKeyboard = () => {
@@ -267,6 +285,42 @@ export default function CoachScreen() {
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  // Function to load user data and extract first name
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        // Extract first name from full name
+        const firstName = user.name ? user.name.split(' ')[0] : '';
+        setUserName(firstName);
+        // Compute initials from full name or email
+        const fullName: string = user.name || '';
+        const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+        let initials = '';
+        if (nameParts.length > 0) {
+          initials = nameParts[0]?.[0] || '';
+          if (nameParts.length > 1) initials += nameParts[1]?.[0] || '';
+        } else if (user.email) {
+          initials = user.email[0] || '';
+        }
+        setProfileInitials(initials.toUpperCase());
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  // Function to load EPC scores
+  const loadEPCScores = async () => {
+    try {
+      const scores = await Storage.getEPCScores();
+      setEpcScores(scores);
+    } catch (error) {
+      console.error('Error loading EPC scores:', error);
+    }
   };
 
   const sendMessage = async () => {
@@ -581,7 +635,7 @@ export default function CoachScreen() {
   };
 
   const renderMessage = (message: Message) => (
-    <ReanimatedAnimated.View 
+    <Animated.View 
       key={message.id} 
       style={[
         styles.messageContainer, 
@@ -599,7 +653,7 @@ export default function CoachScreen() {
           </Text>
         )}
       </View>
-    </ReanimatedAnimated.View>
+    </Animated.View>
   );
 
   const renderTypingIndicator = () => {
@@ -617,17 +671,17 @@ export default function CoachScreen() {
     });
 
     return (
-      <ReanimatedAnimated.View 
+      <Animated.View 
         style={[styles.messageContainer, styles.aiMessageContainer]}
       >
         <View style={[styles.messageBubble, styles.aiBubble, styles.typingBubble]}>
           <View style={styles.typingIndicator}>
-            <ReanimatedAnimated.View style={[styles.typingDot, { opacity: dot1 }]} />
-            <ReanimatedAnimated.View style={[styles.typingDot, { opacity: dot2 }]} />
-            <ReanimatedAnimated.View style={[styles.typingDot, { opacity: dot3 }]} />
+            <Animated.View style={[styles.typingDot, { opacity: dot1 }]} />
+            <Animated.View style={[styles.typingDot, { opacity: dot2 }]} />
+            <Animated.View style={[styles.typingDot, { opacity: dot3 }]} />
           </View>
         </View>
-      </ReanimatedAnimated.View>
+      </Animated.View>
     );
   };
 
@@ -648,10 +702,10 @@ export default function CoachScreen() {
     });
 
     return (
-      <ReanimatedAnimated.View 
+      <Animated.View 
         style={[styles.messageContainer, styles.aiMessageContainer]}
       >
-        <ReanimatedAnimated.View style={[
+        <Animated.View style={[
           styles.thinkingBubble,
           {
             opacity: pulseAnimation,
@@ -660,7 +714,7 @@ export default function CoachScreen() {
         ]}>
           <View style={styles.thinkingContent}>
             <View style={styles.thinkingIcon}>
-              <ReanimatedAnimated.View style={[
+              <Animated.View style={[
                 styles.thinkingShimmer,
                 {
                   opacity: shimmerAnimation,
@@ -670,13 +724,13 @@ export default function CoachScreen() {
             </View>
             <Text style={styles.thinkingText}>Thinking...</Text>
             <View style={styles.thinkingDots}>
-              <ReanimatedAnimated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
-              <ReanimatedAnimated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
-              <ReanimatedAnimated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
+              <Animated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
+              <Animated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
+              <Animated.View style={[styles.thinkingDot, { opacity: pulseAnimation }]} />
             </View>
           </View>
-        </ReanimatedAnimated.View>
-      </ReanimatedAnimated.View>
+        </Animated.View>
+      </Animated.View>
     );
   };
 
@@ -701,7 +755,7 @@ export default function CoachScreen() {
       >
         <View style={styles.sidebarContainer}>
           {/* Apple-style Frosted Glass Blur Background */}
-          <ReanimatedAnimated.View 
+          <Animated.View 
             style={[
               styles.blurBackground,
               {
@@ -719,10 +773,10 @@ export default function CoachScreen() {
             <TouchableWithoutFeedback onPress={closeSidebar}>
               <View style={styles.overlayTouchable} />
             </TouchableWithoutFeedback>
-          </ReanimatedAnimated.View>
+          </Animated.View>
           
           {/* Sidebar without bounce animation */}
-          <ReanimatedAnimated.View 
+          <Animated.View 
             style={[
               styles.sidebar,
               { 
@@ -781,7 +835,7 @@ export default function CoachScreen() {
                 )}
               </ScrollView>
             </SafeAreaView>
-          </ReanimatedAnimated.View>
+          </Animated.View>
         </View>
       </Modal>
     );
@@ -834,9 +888,8 @@ export default function CoachScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <ReanimatedAnimated.View 
+      <Animated.View 
         style={styles.container}
-        entering={FadeIn.duration(200)}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -856,13 +909,27 @@ export default function CoachScreen() {
           <View style={styles.menuButtonPlaceholder} />
         </View>
 
-        {/* EK Icon - moved outside the header to float */}
-        <LinearGradient
-          colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
-          style={styles.profileIconAbsolute} // Removed inline style adjustment
+        {/* Profile Icon - settings button */}
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (epcScores) {
+              router.push({
+                pathname: '/epc-explanation-profile',
+                params: { scores: JSON.stringify(epcScores) }
+              });
+            }
+          }}
+          activeOpacity={0.8}
+          style={styles.profileIconAbsolute}
         >
-          <Text style={styles.profileInitials}>EK</Text>
-        </LinearGradient>
+          <LinearGradient
+            colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
+            style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Text style={styles.profileInitials}>{profileInitials || 'U'}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Main Content Area */}
         <KeyboardAvoidingView 
@@ -901,7 +968,7 @@ export default function CoachScreen() {
         )}
 
         {/* Input area */}
-        <ReanimatedAnimated.View style={[
+        <Animated.View style={[
           styles.inputContainer,
           { paddingBottom: tabBarHeight } // Dynamically set paddingBottom here
         ]}>
@@ -954,11 +1021,11 @@ export default function CoachScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </ReanimatedAnimated.View>
+        </Animated.View>
 
         {/* Sidebar */}
         {renderSidebar()}
-      </ReanimatedAnimated.View>
+      </Animated.View>
     </TouchableWithoutFeedback>
   );
 }
@@ -1049,7 +1116,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userBubble: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1C1C1E',
     borderBottomRightRadius: 4,
   },
   aiBubble: {
@@ -1186,7 +1253,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1C1C1E',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
@@ -1197,7 +1264,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   sendButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1C1C1E',
   },
   sendButtonInactive: {
     backgroundColor: '#F2F2F7',
@@ -1281,11 +1348,11 @@ const styles = StyleSheet.create({
   newChatButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1C1C1E',
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 16,
-    shadowColor: '#007AFF',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1331,10 +1398,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   activeChatItem: {
-    backgroundColor: '#EBF5FF',
-    borderColor: '#007AFF',
+    backgroundColor: '#E6E6E8',
+    borderColor: '#1C1C1E',
     borderWidth: 1,
-    shadowColor: '#007AFF',
+    shadowColor: '#000000',
     shadowOpacity: 0.1,
   },
   chatItemContent: {
@@ -1382,7 +1449,7 @@ const styles = StyleSheet.create({
   },
   // Thinking Indicator Styles
   thinkingBubble: {
-    backgroundColor: '#F0F8FF',
+    backgroundColor: '#F3F3F5',
     borderRadius: 18,
     borderBottomLeftRadius: 4,
     paddingHorizontal: 20,
@@ -1390,8 +1457,8 @@ const styles = StyleSheet.create({
     marginVertical: 3,
     maxWidth: screenWidth * 0.75,
     borderWidth: 1,
-    borderColor: '#E3F2FD',
-    shadowColor: '#007AFF',
+    borderColor: '#D1D1D6',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -1419,13 +1486,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 122, 255, 0.3)',
+    backgroundColor: 'rgba(28, 28, 30, 0.12)',
     borderRadius: 12,
   },
   thinkingText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#007AFF',
+    color: '#1C1C1E',
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
     letterSpacing: -0.32,
     marginLeft: 12,
@@ -1440,7 +1507,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1C1C1E',
     marginHorizontal: 1.5,
   },
   // These are the new styles from the last attempt - I need to integrate them correctly

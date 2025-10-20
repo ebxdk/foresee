@@ -1,8 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dimensions, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { EPCScores } from '../utils/epcScoreCalc';
+import * as Storage from '../utils/storage';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
     Extrapolate,
@@ -29,77 +32,145 @@ interface StorySlide {
   textColor: string;
 }
 
-// Mock story slides for 2025 capacity recap
-const storySlides: StorySlide[] = [
-  {
-    id: 1,
-    type: 'welcome',
-    title: "CAPACITY RECAP",
-    subtitle: "2025",
-    mainText: "Your journey through\nbuilding resilience\nand managing capacity",
-    icon: "🚀",
-    backgroundColor: ['#1A4A5C', '#2D6B7A'],
-    textColor: '#FFFFFF'
-  },
-  {
-    id: 2,
-    type: 'stat',
-    title: "ENERGY LEVELS",
-    mainText: "You maintained an average\nenergy level of\n\n72%\n\nthroughout the year",
-    icon: "⚡",
-    backgroundColor: ['#FF6B35', '#F7931E'],
-    textColor: '#FFFFFF'
-  },
-  {
-    id: 3,
-    type: 'stat',
-    title: "PURPOSE CLARITY",
-    mainText: "Your sense of purpose\ngrew by\n\n28%\n\ncompared to last year",
-    icon: "🎯",
-    backgroundColor: ['#6A4C93', '#9B59B6'],
-    textColor: '#FFFFFF'
-  },
-  {
-    id: 4,
-    type: 'stat',
-    title: "CONNECTION STRENGTH",
-    mainText: "You built stronger\nconnections, improving by\n\n35%\n\nin relationship quality",
-    icon: "💚",
-    backgroundColor: ['#16A085', '#27AE60'],
-    textColor: '#FFFFFF'
-  },
-  {
-    id: 5,
-    type: 'achievement',
-    title: "BIGGEST WIN",
-    mainText: "March was your\nstrongest month!\n\nYou overcame burnout\nand found your rhythm",
-    icon: "🏆",
-    backgroundColor: ['#F39C12', '#E67E22'],
-    textColor: '#FFFFFF'
-  },
-  {
-    id: 6,
-    type: 'challenge',
-    title: "GROWTH MOMENT",
-    mainText: "July was challenging\nbut you bounced back\n\nShowing incredible\nresilience and strength",
-    icon: "💪",
-    backgroundColor: ['#E74C3C', '#C0392B'],
-    textColor: '#FFFFFF'
-  },
-  {
-    id: 7,
-    type: 'growth',
-    title: "LOOKING AHEAD",
-    mainText: "You're building the\nskills to thrive\n\nKeep nurturing your\ncapacity in 2025",
-    icon: "🌟",
-    backgroundColor: ['#3498DB', '#2980B9'],
-    textColor: '#FFFFFF'
+// Function to generate dynamic story slides based on user data
+const generateStorySlides = (userName: string, epcScores: EPCScores | null, hasEnoughData: boolean): StorySlide[] => {
+  if (!hasEnoughData || !epcScores) {
+    return [
+      {
+        id: 1,
+        type: 'welcome',
+        title: "WELCOME",
+        subtitle: "2025",
+        mainText: `Hi ${userName || 'there'}!\n\nYour capacity journey\nis just beginning`,
+        icon: "👋",
+        backgroundColor: ['#1A4A5C', '#2D6B7A'],
+        textColor: '#FFFFFF'
+      },
+      {
+        id: 2,
+        type: 'growth',
+        title: "KEEP GOING!",
+        mainText: "Use the app more to see\nyour personalized\ncapacity recap\n\nTrack your energy,\npurpose, and connections",
+        icon: "📊",
+        backgroundColor: ['#3498DB', '#2980B9'],
+        textColor: '#FFFFFF'
+      },
+      {
+        id: 3,
+        type: 'growth',
+        title: "YOUR JOURNEY",
+        mainText: "Every interaction helps\nbuild your capacity profile\n\nKeep checking in to\nunlock your full recap!",
+        icon: "🌟",
+        backgroundColor: ['#16A085', '#27AE60'],
+        textColor: '#FFFFFF'
+      }
+    ];
   }
-];
+
+  // Generate stories with real user data
+  return [
+    {
+      id: 1,
+      type: 'welcome',
+      title: "CAPACITY RECAP",
+      subtitle: "2025",
+      mainText: `${userName}'s journey through\nbuilding resilience\nand managing capacity`,
+      icon: "🚀",
+      backgroundColor: ['#1A4A5C', '#2D6B7A'],
+      textColor: '#FFFFFF'
+    },
+    {
+      id: 2,
+      type: 'stat',
+      title: "ENERGY LEVELS",
+      mainText: `Your current energy level is\n\n${Math.round(epcScores.energy)}%\n\nKeep building your capacity!`,
+      icon: "⚡",
+      backgroundColor: ['#FF6B35', '#F7931E'],
+      textColor: '#FFFFFF'
+    },
+    {
+      id: 3,
+      type: 'stat',
+      title: "PURPOSE CLARITY",
+      mainText: `Your sense of purpose is at\n\n${Math.round(epcScores.purpose)}%\n\nContinue nurturing your goals!`,
+      icon: "🎯",
+      backgroundColor: ['#6A4C93', '#9B59B6'],
+      textColor: '#FFFFFF'
+    },
+    {
+      id: 4,
+      type: 'stat',
+      title: "CONNECTION STRENGTH",
+      mainText: `Your connection strength is\n\n${Math.round(epcScores.connection)}%\n\nKeep building meaningful relationships!`,
+      icon: "💚",
+      backgroundColor: ['#16A085', '#27AE60'],
+      textColor: '#FFFFFF'
+    },
+    {
+      id: 5,
+      type: 'achievement',
+      title: "YOUR PROGRESS",
+      mainText: "You're actively tracking\nyour capacity!\n\nKeep using the app to\nbuild your full year recap",
+      icon: "🏆",
+      backgroundColor: ['#F39C12', '#E67E22'],
+      textColor: '#FFFFFF'
+    },
+    {
+      id: 6,
+      type: 'growth',
+      title: "KEEP GOING",
+      mainText: "You're building the\nskills to thrive\n\nKeep nurturing your\ncapacity in 2025",
+      icon: "🌟",
+      backgroundColor: ['#3498DB', '#2980B9'],
+      textColor: '#FFFFFF'
+    }
+  ];
+};
 
 export default function CapacityRecapStories() {
   const router = useRouter();
+  const [userName, setUserName] = useState<string>('');
+  const [epcScores, setEpcScores] = useState<EPCScores | null>(null);
+  const [hasEnoughData, setHasEnoughData] = useState<boolean>(false);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  
+  // Function to load user data
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        const firstName = user.name ? user.name.split(' ')[0] : '';
+        setUserName(firstName);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  // Function to load EPC scores and check if user has enough data
+  const loadUserProgress = async () => {
+    try {
+      const scores = await Storage.getEPCScores();
+      setEpcScores(scores);
+      
+      // Check if user has enough data for a meaningful recap
+      const hasData = scores && (scores.energy > 0 || scores.purpose > 0 || scores.connection > 0);
+      setHasEnoughData(hasData || false);
+    } catch (error) {
+      console.error('Error loading user progress:', error);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await loadUserData();
+      await loadUserProgress();
+    };
+    
+    loadInitialData();
+  }, []);
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   
@@ -229,6 +300,8 @@ export default function CapacityRecapStories() {
     ],
   }));
 
+  // Generate dynamic stories based on user data
+  const storySlides = generateStorySlides(userName, epcScores, hasEnoughData);
   const currentSlide = storySlides[currentSlideIndex];
 
   return (

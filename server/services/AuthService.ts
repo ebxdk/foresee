@@ -6,7 +6,7 @@ import { EmailService } from './EmailService';
 import { ValidationService } from './ValidationService';
 import { TokenService } from './TokenService';
 
-const { users, verificationCodes } = schema;
+const { users, verificationCodes, userSessions } = schema;
 
 // Sanitized user type without sensitive fields
 export interface SafeUser {
@@ -449,6 +449,30 @@ export class AuthService {
         success: false, 
         message: 'Failed to update profile. Please try again.' 
       };
+    }
+  }
+
+  /**
+   * Delete user account and all associated data
+   */
+  static async deleteUser(userId: string): Promise<AuthResult> {
+    try {
+      // Delete all user sessions
+      await db.delete(userSessions).where(eq(userSessions.userId, userId));
+      
+      // Delete all verification codes for this user
+      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (user.length > 0) {
+        await db.delete(verificationCodes).where(eq(verificationCodes.email, user[0].email));
+      }
+      
+      // Delete the user account
+      await db.delete(users).where(eq(users.id, userId));
+      
+      return { success: true, message: 'Account deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting user account:', error);
+      return { success: false, message: 'Failed to delete account' };
     }
   }
 }

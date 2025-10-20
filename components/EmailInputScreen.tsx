@@ -120,7 +120,7 @@ const EmailInputScreen: React.FC<EmailInputScreenProps> = ({ onContinue, onBack,
                 disabled={!email.trim() || isLoading}
               >
                 <Text style={styles.nextButtonText}>
-                  {isLoading ? 'Sending verification code...' : 'Next'}
+                  {isLoading ? 'Checking email...' : 'Next'}
                 </Text>
               </TouchableOpacity>
             </View>

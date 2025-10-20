@@ -1575,7 +1575,7 @@ export async function storeHourlyBurnoutData(hour: number, burnoutPercentage: nu
     // Store updated data
     await AsyncStorage.setItem(key, JSON.stringify(existingData));
     
-    console.log(`📊 Hourly burnout data stored: ${hour}:00 = ${burnoutPercentage}%`);
+    // console.log(`📊 Hourly burnout data stored: ${hour}:00 = ${burnoutPercentage}%`);
     
   } catch (error) {
     console.error('Error storing hourly burnout data:', error);
@@ -1633,7 +1633,7 @@ export async function storeMinuteBurnoutData(minute: number, burnoutPercentage: 
     // Store updated data
     await AsyncStorage.setItem(key, JSON.stringify(existingData));
     
-    console.log(`📊 Minute burnout data stored: ${hour}:${minute.toString().padStart(2, '0')} = ${burnoutPercentage}%`);
+    // console.log(`📊 Minute burnout data stored: ${hour}:${minute.toString().padStart(2, '0')} = ${burnoutPercentage}%`);
     
   } catch (error) {
     console.error('Error storing minute burnout data:', error);

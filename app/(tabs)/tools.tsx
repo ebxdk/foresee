@@ -1,10 +1,14 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Path, Rect, Text as SvgText } from 'react-native-svg';
+import { EPCScores } from '../../utils/epcScoreCalc';
 import { getUserState } from '../../utils/storage';
+import * as Storage from '../../utils/storage';
 
 // All tools are now pages, no modal imports needed
 
@@ -328,10 +332,52 @@ const toolsData = [
 export default function ToolsScreen() {
   const [userState, setUserState] = useState<'Maximized' | 'Reserved' | 'Indulgent' | 'Fatigued' | null>(null);
   const [filteredTools, setFilteredTools] = useState(toolsData);
+  const [userName, setUserName] = useState<string>('');
+  const [profileInitials, setProfileInitials] = useState<string>('');
+  const [epcScores, setEpcScores] = useState<EPCScores | null>(null);
+  
+  const router = useRouter();
+
+  // Function to load user data and extract first name
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        // Extract first name from full name
+        const firstName = user.name ? user.name.split(' ')[0] : '';
+        setUserName(firstName);
+        // Compute initials from full name or email
+        const fullName: string = user.name || '';
+        const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+        let initials = '';
+        if (nameParts.length > 0) {
+          initials = nameParts[0]?.[0] || '';
+          if (nameParts.length > 1) initials += nameParts[1]?.[0] || '';
+        } else if (user.email) {
+          initials = user.email[0] || '';
+        }
+        setProfileInitials(initials.toUpperCase());
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  // Function to load EPC scores
+  const loadEPCScores = async () => {
+    try {
+      const scores = await Storage.getEPCScores();
+      setEpcScores(scores);
+    } catch (error) {
+      console.error('Error loading EPC scores:', error);
+    }
+  };
 
   useEffect(() => {
-    const loadUserState = async () => {
+    const loadInitialData = async () => {
       try {
+        // Load user state and filter tools
         const state = await getUserState();
         setUserState(state);
         
@@ -343,14 +389,18 @@ export default function ToolsScreen() {
           // If no user state, show all tools
           setFilteredTools(toolsData);
         }
+        
+        // Load user data and EPC scores
+        await loadUserData();
+        await loadEPCScores();
       } catch (error) {
-        console.error('Error loading user state:', error);
+        console.error('Error loading initial data:', error);
         // Fallback to showing all tools
         setFilteredTools(toolsData);
       }
     };
 
-    loadUserState();
+    loadInitialData();
   }, []);
   
   const handleToolPress = (toolId: string) => {
@@ -415,6 +465,28 @@ export default function ToolsScreen() {
             {userState ? `Tools for ${userState} state` : 'Features and accessories that add more comfort, convenience and security to your work.'}
           </Text>
         </View>
+        
+        {/* Settings button */}
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (epcScores) {
+              router.push({
+                pathname: '/epc-explanation-profile',
+                params: { scores: JSON.stringify(epcScores) }
+              });
+            }
+          }}
+          activeOpacity={0.8}
+          style={styles.profileIconAbsolute}
+        >
+          <LinearGradient
+            colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
+            style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Text style={styles.profileInitials}>{profileInitials || 'U'}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
         
         <View style={styles.content}>
           <View style={styles.toolsGrid}>
@@ -534,5 +606,21 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 100,
+  },
+  profileIconAbsolute: {
+    position: 'absolute',
+    top: 52,
+    right: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  profileInitials: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF'
   },
 }); 

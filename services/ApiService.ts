@@ -139,6 +139,16 @@ export class ApiService {
   }
 
   /**
+   * Check if email already exists in database
+   */
+  static async checkEmailExists(email: string): Promise<ApiResponse<{ exists: boolean }>> {
+    return this.makeRequest('/auth/check-email', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /**
    * Send verification code to email
    */
   static async sendVerificationCode(email: string, name?: string): Promise<ApiResponse> {
@@ -209,6 +219,24 @@ export class ApiService {
 
     // Clear stored token
     await AsyncStorage.removeItem(this.TOKEN_KEY);
+
+    return response;
+  }
+
+  /**
+   * Delete user account
+   */
+  static async deleteAccount(): Promise<ApiResponse> {
+    const response = await this.makeRequest('/auth/delete-account', {
+      method: 'DELETE',
+    });
+
+    // Clear stored token and user data if deletion was successful
+    if (response.success) {
+      await AsyncStorage.removeItem(this.TOKEN_KEY);
+      await AsyncStorage.removeItem('current_user');
+      await AsyncStorage.removeItem('auth_signup_data');
+    }
 
     return response;
   }

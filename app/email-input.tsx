@@ -16,6 +16,26 @@ export default function EmailInputPage() {
     setIsLoading(true);
 
     try {
+      // First check if email already exists
+      const emailCheckResult = await ApiService.checkEmailExists(email);
+      
+      if (emailCheckResult.success && emailCheckResult.exists) {
+        // Email already exists, redirect to login
+        Alert.alert(
+          'Account Already Exists',
+          'This email is already registered. Please log in instead.',
+          [
+            {
+              text: 'Go to Login',
+              onPress: () => {
+                router.replace('/login');
+              }
+            }
+          ]
+        );
+        return;
+      }
+
       // Get the stored name from previous screen
       const signupData = await AsyncStorage.getItem('auth_signup_data');
       const userData = signupData ? JSON.parse(signupData) : {};

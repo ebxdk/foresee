@@ -5,14 +5,46 @@ import { Alert, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PasswordSetupScreen from '../components/PasswordSetupScreen';
+import AgreementModal from '../components/AgreementModal';
 import { ApiService, type SignupData } from '../services/ApiService';
 
 export default function PasswordSetupPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [pendingPassword, setPendingPassword] = useState<string | null>(null);
 
   const handlePasswordContinue = async (password: string) => {
     console.log('Password setup complete');
+    // Store the password and show agreement modal
+    setPendingPassword(password);
+    setShowAgreementModal(true);
+  };
+
+  const handleAgreementComplete = async (agreed: boolean) => {
+    setShowAgreementModal(false);
+    
+    if (!agreed) {
+      // User disagreed, cancel signup
+      Alert.alert(
+        'Signup Cancelled',
+        'You must agree to all terms and conditions to create an account.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/get-started'),
+          },
+        ]
+      );
+      return;
+    }
+
+    // User agreed, proceed with account creation
+    if (!pendingPassword) {
+      Alert.alert('Error', 'Password not found. Please try again.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -37,7 +69,7 @@ export default function PasswordSetupPage() {
       const newUserData: SignupData = {
         name: userData.name,
         email: userData.email,
-        password: password,
+        password: pendingPassword,
       };
 
       const result = await ApiService.signup(newUserData);
@@ -95,6 +127,11 @@ export default function PasswordSetupPage() {
     router.back();
   };
 
+  const handleAgreementCancel = () => {
+    setShowAgreementModal(false);
+    setPendingPassword(null);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -102,6 +139,13 @@ export default function PasswordSetupPage() {
         onContinue={handlePasswordContinue} 
         onBack={handleBackFromPassword}
         isLoading={isLoading}
+      />
+      
+      {/* Agreement Modal */}
+      <AgreementModal
+        visible={showAgreementModal}
+        onComplete={handleAgreementComplete}
+        onCancel={handleAgreementCancel}
       />
     </SafeAreaView>
   );

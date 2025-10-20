@@ -137,16 +137,11 @@ const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onP
                   />
                 </View>
                 
-                {/* Percentage with confidence indicator */}
+                {/* Burnout percentage */}
                 <View style={styles.percentageContainer}>
                   <Text style={[styles.burnoutText, { color: getBurnoutColor(day.percentage) }]}>
                     {day.percentage}%
                   </Text>
-                  {day.confidence && (
-                    <Text style={styles.confidenceText}>
-                      {day.confidence}%
-                    </Text>
-                  )}
                 </View>
               </View>
             </TouchableOpacity>
@@ -211,15 +206,15 @@ const styles = StyleSheet.create({
     color: '#007AFF',
   },
   ringContainer: {
-    width: 36, // Reduced from 40 to match smaller ring size
+    width: 32,
     alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: 4,
   },
   burnoutContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 8,
   },
   burnoutBar: {
     flex: 1,
@@ -250,12 +245,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'right',
-  },
-  confidenceText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-    marginTop: 1,
   },
   divider: {
     height: 1,

@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import PDFViewer from './PDFViewer';
 import Animated, {
     runOnJS,
     useAnimatedStyle,
@@ -25,6 +26,7 @@ interface AuthCardProps {
 export default function AuthCard({ visible, onClose, onSignupClick }: AuthCardProps) {
   const router = useRouter();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [showPDFViewer, setShowPDFViewer] = useState(false);
   const translateY = useSharedValue(screenHeight);
   const backdropOpacity = useSharedValue(0);
 
@@ -101,6 +103,10 @@ export default function AuthCard({ visible, onClose, onSignupClick }: AuthCardPr
     onClose();
     router.push('/onboarding');
   };
+
+  const handleTermsPress = () => {
+    setShowPDFViewer(true);
+  };
   
   if (!isModalVisible) {
     return null;
@@ -155,11 +161,19 @@ export default function AuthCard({ visible, onClose, onSignupClick }: AuthCardPr
             
             <Text style={styles.termsText}>
               By continuing, you agree to Foresee's{' '}
-              <Text style={styles.linkText}>Terms of Use</Text>.
+              <Text style={styles.linkText} onPress={handleTermsPress}>Terms of Use</Text>.
             </Text>
           </View>
         </Animated.View>
       </GestureDetector>
+
+      {/* PDF Viewer Modal */}
+      <PDFViewer
+        visible={showPDFViewer}
+        onClose={() => setShowPDFViewer(false)}
+        pdfPath={require('../assets/Terms of Service (Beta) - Final.pdf')}
+        title="Terms of Service"
+      />
     </Modal>
   );
 }

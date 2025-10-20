@@ -1,14 +1,73 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { EPCScores } from '../../utils/epcScoreCalc';
+import * as Storage from '../../utils/storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function ProgressScreen() {
   const router = useRouter();
+  const [userName, setUserName] = useState<string>('');
+  const [profileInitials, setProfileInitials] = useState<string>('');
+  const [epcScores, setEpcScores] = useState<EPCScores | null>(null);
+  const [hasEnoughData, setHasEnoughData] = useState<boolean>(false);
+
+  // Function to load user data and extract first name
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        // Extract first name from full name
+        const firstName = user.name ? user.name.split(' ')[0] : '';
+        setUserName(firstName);
+        // Compute initials from full name or email
+        const fullName: string = user.name || '';
+        const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+        let initials = '';
+        if (nameParts.length > 0) {
+          initials = nameParts[0]?.[0] || '';
+          if (nameParts.length > 1) initials += nameParts[1]?.[0] || '';
+        } else if (user.email) {
+          initials = user.email[0] || '';
+        }
+        setProfileInitials(initials.toUpperCase());
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  // Function to load EPC scores and check if user has enough data
+  const loadUserProgress = async () => {
+    try {
+      const scores = await Storage.getEPCScores();
+      setEpcScores(scores);
+      
+      // Check if user has enough data for a meaningful recap
+      // This could be based on number of data points, time using app, etc.
+      const hasData = scores && (scores.energy > 0 || scores.purpose > 0 || scores.connection > 0);
+      setHasEnoughData(hasData || false);
+    } catch (error) {
+      console.error('Error loading user progress:', error);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await loadUserData();
+      await loadUserProgress();
+    };
+    
+    loadInitialData();
+  }, []);
 
   const handleRecapPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -31,19 +90,25 @@ export default function ProgressScreen() {
             <Text style={styles.title}>Progress</Text>
           </View>
           
-          {/* Absolutely positioned profile icon - same as radar tab */}
-          <TouchableOpacity 
-            style={styles.profileIconAbsolute}
+          {/* Absolutely positioned profile icon - settings button */}
+          <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              // Navigation functionality to be implemented later
+              if (epcScores) {
+                router.push({
+                  pathname: '/epc-explanation-profile',
+                  params: { scores: JSON.stringify(epcScores) }
+                });
+              }
             }}
+            activeOpacity={0.8}
+            style={styles.profileIconAbsolute}
           >
             <LinearGradient
-              colors={['#D1D1D6', '#8E8E93']}
-              style={styles.profileGradient}
+              colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
+              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}
             >
-              <Text style={styles.profileText}>EK</Text>
+              <Text style={styles.profileInitials}>{profileInitials || 'U'}</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -73,17 +138,30 @@ export default function ProgressScreen() {
                 style={styles.blackGradientOverlay}
               >
                 <View style={styles.textContainer}>
-                  <Text style={styles.recapYearLarge}>2025</Text>
-                  <Text style={styles.recapYearMedium}>Year</Text>
-                  <Text style={styles.recapYearSmall}>Recap</Text>
-                  <ExpoImage 
-                    source={require('../../assets/images/Capcity_Creator_Logo_copy-removebg-preview.png')}
-                    style={styles.logoImage}
-                    contentFit="contain"
-                    transition={0}
-                    cachePolicy="memory-disk"
-                    priority="high"
-                  />
+                  {hasEnoughData ? (
+                    <>
+                      <Text style={styles.recapYearLarge}>2025</Text>
+                      <Text style={styles.recapYearMedium}>Year</Text>
+                      <Text style={styles.recapYearSmall}>Recap</Text>
+                      <ExpoImage 
+                        source={require('../../assets/images/Capcity_Creator_Logo_copy-removebg-preview.png')}
+                        style={styles.logoImage}
+                        contentFit="contain"
+                        transition={0}
+                        cachePolicy="memory-disk"
+                        priority="high"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.recapYearLarge}>📊</Text>
+                      <Text style={styles.recapYearMedium}>Keep</Text>
+                      <Text style={styles.recapYearSmall}>Going!</Text>
+                      <Text style={styles.encouragementText}>
+                        Use the app more to see your full recap of the year
+                      </Text>
+                    </>
+                  )}
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -136,11 +214,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileText: {
+  profileInitials: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    color: '#FFFFFF'
   },
   mainScrollView: {
     flex: 1,
@@ -235,5 +312,15 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  encouragementText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 12,
+    paddingHorizontal: 20,
+    opacity: 0.9,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
 }); 

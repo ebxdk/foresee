@@ -49,7 +49,6 @@ export class MinuteDataManager {
       return;
     }
 
-    console.log('📊 Initializing minute-based burnout tracking...');
     
     // Get current burnout as baseline
     await this.updateBaseline();
@@ -131,7 +130,6 @@ export class MinuteDataManager {
       // Update last known value
       this.lastBurnoutValue = burnoutPercentage;
 
-      console.log(`📊 Minute ${currentHour}:${(currentMinute % 60).toString().padStart(2, '0')} - ${burnoutPercentage.toFixed(1)}% (${source})`);
 
     } catch (error) {
       console.error('❌ Error collecting minute data:', error);
@@ -420,10 +418,8 @@ export class MinuteDataManager {
     
     if (epcScores) {
       this.lastBurnoutValue = calculateBurnoutFromScores(epcScores);
-      console.log(`📊 Baseline burnout updated: ${this.lastBurnoutValue.toFixed(1)}%`);
     } else {
       this.lastBurnoutValue = 50; // Default baseline
-      console.log('📊 Using default baseline: 50%');
     }
   }
 

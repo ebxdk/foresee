@@ -189,14 +189,14 @@ export async function getHealthData(): Promise<HealthData | null> {
     // Generate realistic mock data for Expo/Replit environment
     const mockData = generateRealisticHealthData();
     
-    // Log the mock data for debugging
-    console.log('Mock Health Data Generated:', {
-      sleep: `${mockData.sleep.hoursSlept}h (quality: ${mockData.sleep.sleepQuality}/5)`,
-      activity: `${mockData.activity.steps.toLocaleString()} steps, ${mockData.activity.activeMinutes}min active`,
-      heartRate: `${mockData.heartRate.restingHR} BPM resting, ${mockData.heartRate.hrv}ms HRV`,
-      mood: `${mockData.mood.rating}/5`,
-      mindfulness: `${mockData.mindfulness.minutesToday}min, ${mockData.mindfulness.sessionsCompleted} sessions`,
-    });
+    // Log the mock data for debugging (disabled for cleaner console)
+    // console.log('Mock Health Data Generated:', {
+    //   sleep: `${mockData.sleep.hoursSlept}h (quality: ${mockData.sleep.sleepQuality}/5)`,
+    //   activity: `${mockData.activity.steps.toLocaleString()} steps, ${mockData.activity.activeMinutes}min active`,
+    //   heartRate: `${mockData.heartRate.restingHR} BPM resting, ${mockData.heartRate.hrv}ms HRV`,
+    //   mood: `${mockData.mood.rating}/5`,
+    //   mindfulness: `${mockData.mindfulness.minutesToday}min, ${mockData.mindfulness.sessionsCompleted} sessions`,
+    // });
 
     // Store daily activity data for energy decay calculations
     await storeDailyActivity({

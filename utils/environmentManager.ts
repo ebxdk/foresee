@@ -260,6 +260,9 @@ export class ConfidenceLogger {
     message: string,
     status: 'tested' | 'simulated' | 'verified' = 'tested'
   ): void {
+    // Disabled excessive logging
+    return;
+    
     const logEntry = {
       timestamp: new Date(),
       feature,

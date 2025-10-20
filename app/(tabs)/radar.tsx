@@ -2,14 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 // Import components and utilities
 import BurnoutForecastWidget from '../../components/BurnoutForecastWidget';
 import BurnoutGraphChart from '../../components/BurnoutGraphChart';
-import ForecastInfluenceCards from '../../components/ForecastInfluenceCards';
 import { getActionablesForWeakestPillar } from '../../utils/actionables';
 import { getAppleHealthDataOrMock, getHealthAuthorizationDebug, getHealthKitStatus, getHealthReadProbe, getTodayStepsDebug, initHealthKit, resetHealthKitBridgeStatus, subscribeToRealtimeHealthChanges } from '../../utils/appleHealth';
 import { calculateBurnoutFromScores } from '../../utils/burnoutCalc';
@@ -100,16 +99,13 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
       // Only apply adjustments if real data exists
       let adjustedScores = epcScores;
       
-      if (appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
+      if (appleHealthData && appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
         const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
         adjustedScores = {
           energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
           purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
           connection: Math.max(0, Math.min(100, epcScores.connection + healthAdjustments.connectionAdjustment)),
         };
-        console.log('📊 Using real HealthKit data for forecast adjustments');
-      } else {
-        console.log('📊 Using baseline EPC (no real HealthKit data)');
       }
 
       const todayBurnout = calculateBurnoutFromScores(adjustedScores);
@@ -123,7 +119,7 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
       return buildForecastDays(todayBurnout, forecast, confidence.standardDeviation, confidence);
     } catch (error) {
       // If HealthKit is not available, use raw EPC scores without biometric adjustments
-      console.log('⚠️ HealthKit not available for forecast, using raw EPC scores:', (error as Error).message);
+      // console.log('⚠️ HealthKit not available for forecast, using raw EPC scores:', (error as Error).message);
       const todayBurnout = calculateBurnoutFromScores(epcScores);
       const recentHistory = await Storage.getRecentBurnoutLevels(7);
       const { forecast, confidence } = generateSmartForecast(todayBurnout, recentHistory);
@@ -249,11 +245,9 @@ const generateHourlyData = async (): Promise<BurnoutDataPoint[]> => {
         const storedBurnout = await Storage.getHourlyBurnoutData(hour);
         if (storedBurnout !== null) {
           burnoutValue = storedBurnout;
-          console.log(`📊 Current hour ${hour}:00 - Stored real-time burnout: ${burnoutValue}%`);
         } else {
           // If no stored data for current hour, calculate it now
           burnoutValue = calculateBurnoutFromScores(currentScores);
-          console.log(`📊 Current hour ${hour}:00 - Recalculated burnout: ${burnoutValue}%`);
           // Consider storing this newly calculated value immediately if it's the very first time for this hour
           // await storeHourlyBurnoutData(hour, burnoutValue); // This is already handled by loadRadarData
         }
@@ -263,11 +257,9 @@ const generateHourlyData = async (): Promise<BurnoutDataPoint[]> => {
         const hourlyData = await Storage.getHourlyBurnoutData(hour);
         if (hourlyData !== null) {
           burnoutValue = hourlyData;
-          console.log(`📊 Past hour ${hour}:00 - Stored burnout: ${burnoutValue}%`);
         } else {
           // NO ESTIMATION - if no stored data, show as gap
           burnoutValue = null;
-          console.log(`📊 Past hour ${hour}:00 - No stored data (gap)`);
         }
       }
       // For future hours, show no data (gaps)
@@ -294,13 +286,9 @@ const generateHourlyData = async (): Promise<BurnoutDataPoint[]> => {
 // Enhanced minute-based tracking for Today tab using MinuteDataManager
 const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutDataPoint[]> => {
   try {
-    console.log('📊 Getting minute data from MinuteDataManager...');
-    
     // Get minute data from the new manager
     const minuteManager = MinuteDataManager.getInstance();
     const minuteData = await minuteManager.getTodayMinuteData();
-    
-    console.log(`📊 Retrieved ${minuteData.length} minute data points`);
 
     // Convert to BurnoutDataPoint format for graph compatibility
     const data: BurnoutDataPoint[] = minuteData.map(point => {
@@ -347,7 +335,6 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
       });
     }
 
-    console.log(`📊 Converted to ${data.length} graph data points for Today view`);
     
     // Apply smart biometric interpolation to fill gaps with believable data
     const interpolatedData = await fillTodayDataGaps(data, {
@@ -357,10 +344,6 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
       naturalPatterns: true,  // Apply circadian rhythm patterns
       preserveAnchors: true,  // Ensure we hit real data points
     });
-    
-    const realDataCount = interpolatedData.filter(p => p.hasData).length;
-    const interpolatedCount = interpolatedData.length - realDataCount;
-    console.log(`🎨 SMART INTERPOLATION: ${realDataCount} real + ${interpolatedCount} biometric-predicted points`);
     
     return interpolatedData;
   } catch (error) {
@@ -405,7 +388,6 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
           hasData: totalMinutes <= currentTotalMinutes,
         });
       }
-      console.log('ℹ️ Falling back to base minute data (no interpolation)');
       return fallback;
     } catch (inner) {
       console.error('❌ Fallback minute data failed:', inner);
@@ -416,7 +398,6 @@ const generateTodayMinuteData = async (currentBurnout: number): Promise<BurnoutD
 
 const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPoint[]> => {
   try {
-    console.log('🔄 WEEK: Starting weekly data generation...');
     const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // Clear day labels
     const data: BurnoutDataPoint[] = [];
     const today = new Date();
@@ -443,14 +424,12 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
         burnoutValue = currentBurnout;
         hasRealData = true;
         todayIndex = i;
-        console.log(`📊 WEEK: TODAY (${days[i]}) - Real burnout: ${burnoutValue}%`);
       } else if (date <= today) {
         // For past days, try to get daily average burnout
         burnoutValue = await Storage.getDailyAverageBurnout(dateString);
         
         if (burnoutValue !== null) {
           hasRealData = true;
-          console.log(`📊 WEEK: PAST (${days[i]}) - Stored average: ${burnoutValue}%`);
         } else {
           // Try to compute from hourly data (only for today)
           if (dateString === todayString) {
@@ -459,7 +438,6 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
               const values = Object.values(hourlyData);
               burnoutValue = values.reduce((sum, val) => sum + val, 0) / values.length;
               hasRealData = true;
-              console.log(`📊 WEEK: PAST (${days[i]}) - Computed from hourly: ${burnoutValue.toFixed(1)}%`);
             }
           }
         }
@@ -471,11 +449,9 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
           // Carry forward from last known day (deterministic)
           const lastValidValue = data.filter(d => d.hasData).pop()?.value || currentBurnout;
           burnoutValue = lastValidValue; // No variation - use exact value
-          console.log(`⚠️ WEEK: FALLBACK (${days[i]}) - Carry forward: ${burnoutValue.toFixed(1)}%`);
         } else {
           // Use current burnout as baseline (deterministic)
           burnoutValue = currentBurnout;
-          console.log(`⚠️ WEEK: FALLBACK (${days[i]}) - Baseline: ${burnoutValue.toFixed(1)}%`);
         }
       }
 
@@ -488,7 +464,6 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
       });
     }
     
-    console.log(`✅ WEEK: Generated 7 days, ${data.filter(d => d.hasData).length} with real data, today at index ${todayIndex}`);
     return data;
   } catch (error) {
     console.error('❌ WEEK: Error generating weekly data:', error);
@@ -498,14 +473,12 @@ const generateWeeklyData = async (currentBurnout: number): Promise<BurnoutDataPo
       label: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][i],
       hasData: false
     }));
-    console.log('🔄 WEEK: Using fallback data due to error');
     return fallbackData;
   }
 };
 
 const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
   try {
-    console.log('🔄 MONTH: Starting monthly data generation...');
     
     // Get actual burnout history from storage
     const history = await Storage.getBurnoutHistory();
@@ -516,7 +489,6 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     
-    console.log(`📅 MONTH: Processing ${monthStart.toDateString()} to ${monthEnd.toDateString()}`);
     
     // Generate week buckets for current month
     const weeks: Array<{start: Date, end: Date, label: string}> = [];
@@ -543,7 +515,6 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
       currentWeekStart.setDate(currentWeekStart.getDate() + 7);
     }
     
-    console.log(`📊 MONTH: Found ${weeks.length} weeks in current month`);
     
     let hasAnyRealData = false;
     let currentWeekIndex = -1;
@@ -571,7 +542,6 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
         weekValue = Math.round(average);
         hasRealData = true;
         hasAnyRealData = true;
-        console.log(`📊 MONTH: ${week.label} (${week.start.getDate()}-${week.end.getDate()}) - Real average: ${weekValue}% (${weekData.length} days)`);
       } else {
         // Try to compute from available daily data in this week
         let computedValues: number[] = [];
@@ -588,7 +558,6 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
           weekValue = Math.round(computedValues.reduce((sum, val) => sum + val, 0) / computedValues.length);
           hasRealData = true;
           hasAnyRealData = true;
-          console.log(`📊 MONTH: ${week.label} - Computed from ${computedValues.length} days: ${weekValue}%`);
         } else {
           // Intelligent fallback (deterministic)
           if (hasAnyRealData && data.length > 0) {
@@ -597,7 +566,6 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
           } else {
             weekValue = 50; // Baseline value
           }
-          console.log(`⚠️ MONTH: ${week.label} - Fallback value: ${weekValue}%`);
         }
       }
       
@@ -608,7 +576,6 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
       });
     }
     
-    console.log(`✅ MONTH: Generated ${data.length} weeks, ${data.filter(d => d.hasData).length} with real data, current week at index ${currentWeekIndex}`);
     return data;
   } catch (error) {
     console.error('❌ MONTH: Error generating monthly data:', error);
@@ -618,40 +585,17 @@ const generateMonthlyData = async (): Promise<BurnoutDataPoint[]> => {
       label: `W${i + 1}`,
       hasData: false
     }));
-    console.log('🔄 MONTH: Using fallback data due to error');
     return fallbackData;
   }
 };
 
 
-// Smart logging system for detecting issues
+// Smart logging system for detecting issues (disabled to reduce console spam)
 const logGraphRenderingDiagnostics = (period: string, data: BurnoutDataPoint[], selectedIndex: number) => {
-  console.log(`🔍 DIAGNOSTIC: === ${period} View Analysis ===`);
-  console.log(`📊 Data Count: ${data.length} points`);
-  console.log(`✅ Real Data: ${data.filter(d => d.hasData).length} points`);
-  console.log(`❌ Fallback Data: ${data.filter(d => !d.hasData).length} points`);
-  console.log(`🎯 Selected Index: ${selectedIndex}/${data.length - 1}`);
-  
-  if (data.length > 0) {
-    console.log(`📈 Value Range: ${Math.min(...data.map(d => d.value))}% - ${Math.max(...data.map(d => d.value))}%`);
-    console.log(`🏷️ Labels: [${data.slice(0, 3).map(d => d.label).join(', ')}${data.length > 3 ? '...' : ''}]`);
-    
-    if (selectedIndex >= 0 && selectedIndex < data.length) {
-      const selected = data[selectedIndex];
-      console.log(`🎯 Selected Point: ${selected.label} = ${selected.value}% (hasData: ${selected.hasData})`);
-    }
+  // Only log in development mode and only for errors
+  if (__DEV__ && data.length === 0) {
+    console.log(`❌ ISSUE: No data points generated for ${period}`);
   }
-  
-  // Check for common issues
-  if (data.length === 0) {
-    console.log('❌ ISSUE: No data points generated');
-  } else if (data.filter(d => d.hasData).length === 0) {
-    console.log('⚠️ WARNING: All data points are fallback values');
-  } else if (selectedIndex < 0 || selectedIndex >= data.length) {
-    console.log('❌ ISSUE: Selected index out of bounds');
-  }
-  
-  console.log(`🔍 DIAGNOSTIC: === End ${period} Analysis ===\n`);
 };
 
 // Initialize today's hourly burnout data if none exists
@@ -674,7 +618,6 @@ const initializeTodayHourlyData = async (currentBurnout: number): Promise<void> 
     // Store initial data
     await AsyncStorage.setItem(key, JSON.stringify(hourlyData));
     
-    console.log(`📊 Initialized hourly burnout data for today: ${currentHour}:00 = ${currentBurnout}%`);
     
   } catch (error) {
     console.error('Error initializing hourly burnout data:', error);
@@ -694,11 +637,39 @@ export default function RadarScreen() {
   const [graphData, setGraphData] = useState<BurnoutDataPoint[]>([]);
   const [selectedDataIndex, setSelectedDataIndex] = useState(0);
   const [graphDataCache, setGraphDataCache] = useState<Record<string, BurnoutDataPoint[]>>({}); // New cache for graph data
+  const [userName, setUserName] = useState<string>('');
+  const [profileInitials, setProfileInitials] = useState<string>('');
   
   // Cache for health data in development mode to prevent repeated HealthKit calls
   let healthDataCache: any = null;
   
   const router = useRouter();
+
+  // Function to load user data and extract first name
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('current_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        // Extract first name from full name
+        const firstName = user.name ? user.name.split(' ')[0] : '';
+        setUserName(firstName);
+        // Compute initials from full name or email
+        const fullName: string = user.name || '';
+        const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+        let initials = '';
+        if (nameParts.length > 0) {
+          initials = nameParts[0]?.[0] || '';
+          if (nameParts.length > 1) initials += nameParts[1]?.[0] || '';
+        } else if (user.email) {
+          initials = user.email[0] || '';
+        }
+        setProfileInitials(initials.toUpperCase());
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
 
   const loadRadarData = useCallback(async (showLoading: boolean = true) => {
     try {
@@ -724,7 +695,20 @@ export default function RadarScreen() {
         // Fetch Apple Health data (real biometric data only)
         try {
           const appleHealthData = await getAppleHealthDataOrMock();
-          const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
+          
+          // Only proceed if we have HealthKit data
+          if (!appleHealthData) {
+            // No HealthKit data available, use raw EPC scores
+            const rawBurnoutPercentage = calculateBurnoutFromScores(scores);
+            setTodayBurnout(Math.round(rawBurnoutPercentage));
+            
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            await Storage.storeHourlyBurnoutData(currentHour, rawBurnoutPercentage);
+            await Storage.storeMinuteBurnoutData(currentMinute, rawBurnoutPercentage);
+          } else {
+            const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
 
           const adjustedScores = {
             energy: Math.max(0, Math.min(100, scores.energy + healthAdjustments.energyAdjustment)),
@@ -747,15 +731,10 @@ export default function RadarScreen() {
           // Store hourly and minute data using adjusted value so Today/Week reflect biometrics in near-realtime
           await Storage.storeHourlyBurnoutData(currentHour, adjustedBurnoutPercentage);
           await Storage.storeMinuteBurnoutData(currentMinute, adjustedBurnoutPercentage);
-
-          console.log(
-            `📊 Data stored for ${currentHour}:${currentMinute.toString().padStart(2, '0')} = ${adjustedBurnoutPercentage}% (raw ${rawBurnoutPercentage}%)`
-          );
-
-          console.log('🍎 Health adjustments applied:', healthAdjustments, 'Adjusted EPC:', adjustedScores);
+          }
         } catch (error) {
           // If HealthKit is not available, use raw EPC scores without biometric adjustments
-          console.log('⚠️ HealthKit not available, using raw EPC scores:', (error as Error).message);
+          // console.log('⚠️ HealthKit not available, using raw EPC scores:', (error as Error).message);
           const rawBurnoutPercentage = calculateBurnoutFromScores(scores);
           setTodayBurnout(Math.round(rawBurnoutPercentage));
           
@@ -802,7 +781,6 @@ export default function RadarScreen() {
           const currentMinuteIndex = now.getHours() * 60 + now.getMinutes();
           const safeIndex = Math.min(currentMinuteIndex, cachedData.length - 1);
           setSelectedDataIndex(safeIndex);
-          console.log(`🎯 CACHE: TODAY - Selected minute ${currentMinuteIndex} (safe index ${safeIndex})`);
         } else if (selectedPeriod === 'Week') {
           // Select today in week, prefer last day with data
           const todayIndex = new Date().getDay();
@@ -810,7 +788,6 @@ export default function RadarScreen() {
           
           if (todayData && todayData.hasData) {
             setSelectedDataIndex(todayIndex);
-            console.log(`🎯 CACHE: WEEK - Selected today (${todayData.label})`);
           } else {
             // Find last day with data
             let lastDataIndex = todayIndex;
@@ -821,7 +798,6 @@ export default function RadarScreen() {
               }
             }
             setSelectedDataIndex(lastDataIndex);
-            console.log(`🎯 CACHE: WEEK - Selected last data day (${cachedData[lastDataIndex]?.label})`);
           }
         } else if (selectedPeriod === 'Month') {
           // Find current week in month
@@ -832,12 +808,9 @@ export default function RadarScreen() {
           const currentWeek = Math.floor((dayOfMonth + firstDayOfWeek - 1) / 7);
           const safeIndex = Math.min(currentWeek, cachedData.length - 1);
           setSelectedDataIndex(safeIndex);
-          console.log(`🎯 CACHE: MONTH - Selected week ${currentWeek + 1} (index ${safeIndex})`);
         }
-        console.log(`⚡ CACHE: ${selectedPeriod} - Loaded ${cachedData.length} cached points`);
       } else {
         // If no cached data yet, keep previous graphData to avoid flicker/zero dips while fetching fresh data
-        console.log(`⏳ No cached data for ${selectedPeriod}, keeping previous data while fetching...`);
       }
 
       // Always initiate a background fetch for fresh data
@@ -853,7 +826,6 @@ export default function RadarScreen() {
               const now = new Date();
               const currentMinuteIndex = now.getHours() * 60 + now.getMinutes();
               newSelectedIndex = Math.min(currentMinuteIndex, fetchedData.length - 1);
-              console.log(`🎯 FETCH: TODAY - Selected minute ${currentMinuteIndex} (index ${newSelectedIndex})`);
               break;
             case 'Week':
               fetchedData = await generateWeeklyData(todayBurnout);
@@ -863,14 +835,12 @@ export default function RadarScreen() {
               
               if (todayWeekData && todayWeekData.hasData) {
                 newSelectedIndex = todayIndex;
-                console.log(`🎯 FETCH: WEEK - Selected today (${todayWeekData.label})`);
               } else {
                 // Find last day with data
                 newSelectedIndex = todayIndex; // fallback
                 for (let i = fetchedData.length - 1; i >= 0; i--) {
                   if (fetchedData[i].hasData) {
                     newSelectedIndex = i;
-                    console.log(`🎯 FETCH: WEEK - Selected last data day (${fetchedData[i].label})`);
                     break;
                   }
                 }
@@ -885,7 +855,6 @@ export default function RadarScreen() {
               const firstDayOfWeek = monthStart.getDay();
               const currentWeek = Math.floor((dayOfMonth + firstDayOfWeek - 1) / 7);
               newSelectedIndex = Math.min(currentWeek, fetchedData.length - 1);
-              console.log(`🎯 FETCH: MONTH - Selected week ${currentWeek + 1} (index ${newSelectedIndex})`);
               break;
             default:
               fetchedData = [];
@@ -909,13 +878,13 @@ export default function RadarScreen() {
             setGraphData(fetchedData);
             setSelectedDataIndex(newSelectedIndex); // Update selected index with fresh data
             
-            // Run comprehensive diagnostics
-            logGraphRenderingDiagnostics(selectedPeriod, fetchedData, newSelectedIndex);
-            console.log(`✅ Fetched and updated graph data for ${selectedPeriod}`);
+            // Run comprehensive diagnostics (only in development)
+            if (__DEV__) {
+              logGraphRenderingDiagnostics(selectedPeriod, fetchedData, newSelectedIndex);
+            }
           } else {
             // Ensure the selected index reflects the current time even when data is identical
             setSelectedDataIndex(newSelectedIndex);
-            console.log(`ℹ️ Fresh data for ${selectedPeriod} identical to cached. Updated selection index only.`);
           }
         } catch (backgroundError) {
           console.error(`Error loading graph data in background for ${selectedPeriod}:`, backgroundError);
@@ -931,6 +900,12 @@ export default function RadarScreen() {
     }
   }, [graphDataCache, selectedPeriod, todayBurnout]);
 
+  // Keep a ref to the latest loadGraphData implementation for one-time init effect
+  const loadGraphDataRef = useRef(loadGraphData);
+  useEffect(() => {
+    loadGraphDataRef.current = loadGraphData;
+  }, [loadGraphData]);
+
   // Request HealthKit permissions when radar page loads
   const requestHealthKitPermissions = useCallback(async () => {
     try {
@@ -938,15 +913,15 @@ export default function RadarScreen() {
       if (success) {
         console.log('✅ HealthKit permissions granted');
       } else {
-        console.log('⚠️ HealthKit permissions not available (using mock data)');
+        // console.log('⚠️ HealthKit permissions not available (using mock data)');
         
         // Check what specific permissions are denied and provide guidance
         const { checkHealthKitPermissions } = await import('../../utils/appleHealth');
         const permissionCheck = await checkHealthKitPermissions();
         
         if (permissionCheck.needsUserAction) {
-          console.log('🔧 User action needed for HealthKit permissions:');
-          console.log(permissionCheck.guidanceMessage);
+          // Silently handle HealthKit permission needs
+          // (logging disabled to prevent console spam)
           
           // You could show an alert or modal here to guide the user
           // Alert.alert(
@@ -965,17 +940,35 @@ export default function RadarScreen() {
   useEffect(() => {
     const loadInitialData = async () => {
       // Request HealthKit permissions first
-      await requestHealthKitPermissions();
+      try {
+        await requestHealthKitPermissions();
+      } catch (permissionError) {
+        console.warn(
+          'HealthKit permission request failed (continuing without permissions):',
+          permissionError instanceof Error ? permissionError.message : permissionError
+        );
+      }
       
-      // Initialize smart environment detection
-      const { EnvironmentManager, ConfidenceLogger } = await import('../../utils/environmentManager');
-      await EnvironmentManager.initialize();
+      // Initialize smart environment detection (optional for Expo Go/web)
+      let confidenceLoggerRef: { logFeatureTest: (...args: any[]) => void } | null = null;
+      try {
+        const { EnvironmentManager, ConfidenceLogger } = await import('../../utils/environmentManager');
+        await EnvironmentManager.initialize();
+        confidenceLoggerRef = ConfidenceLogger;
+      } catch (envError) {
+        console.warn(
+          'EnvironmentManager initialization skipped for Radar screen:',
+          envError instanceof Error ? envError.message : envError
+        );
+      }
       
+      await loadUserData();
       await loadRadarData();
+      await loadGraphDataRef.current();
       
       // Test radar-specific functionality in development
-      if (__DEV__) {
-        ConfidenceLogger.logFeatureTest(
+      if (__DEV__ && false && confidenceLoggerRef) { // Disabled excessive logging
+        confidenceLoggerRef.logFeatureTest(
           'Radar Data Loading',
           100,
           'Radar data loaded successfully with environment-aware optimizations',
@@ -1000,7 +993,7 @@ export default function RadarScreen() {
         }
       } catch (error) {
         // Subscriptions may fail on simulators/Expo Go; ignore
-        console.log('HealthKit subscription not available (using mock data)');
+        // console.log('HealthKit subscription not available (using mock data)');
       }
     })();
 
@@ -1009,9 +1002,9 @@ export default function RadarScreen() {
         try { unsubscribe(); } catch (_) {}
       }
     };
-  }, [requestHealthKitPermissions, loadRadarData, loadGraphData]); // Run when biometric handlers change
+  }, [requestHealthKitPermissions, loadRadarData]); // Run when biometric handlers change
 
-  // Refresh data when EPC scores change (every minute for smooth updates)
+  // Refresh data when EPC scores change (every 5 minutes for smooth updates)
   useEffect(() => {
     const interval = setInterval(() => {
       // Only refresh if we're not in development mode to avoid excessive HealthKit calls
@@ -1019,14 +1012,13 @@ export default function RadarScreen() {
         loadRadarData(false); // Refresh in background
         loadGraphData();
       }
-    }, 60000); // Refresh every minute to align with minute tracking
+    }, 300000); // Refresh every 5 minutes instead of every minute
 
     return () => clearInterval(interval);
   }, [loadRadarData, loadGraphData]);
 
   // Manual refresh function
   const handleRefresh = async () => {
-    console.log('🔄 Manual refresh triggered');
     await loadRadarData();
     await loadGraphData();
   };
@@ -1265,7 +1257,7 @@ export default function RadarScreen() {
 
   const handleDayPress = (dayIndex: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/forecast-details?dayIndex=${dayIndex}`);
+    router.push('/burnout-details');
   };
 
   const taskList = smartTasks.length > 0 ? smartTasks : allTasks;
@@ -1356,52 +1348,58 @@ export default function RadarScreen() {
                           <View style={styles.header}>
                 <Text style={styles.title}>Radar</Text>
                
-                {/* Refresh Button */}
-                <TouchableOpacity 
+                {/* Refresh Button - COMMENTED OUT */}
+                {/* <TouchableOpacity 
                   style={styles.refreshButton}
                   onPress={handleRefresh}
                 >
                   <Text style={styles.refreshButtonText}>🔄</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
-                {/* HealthKit Test Button */}
-                <TouchableOpacity 
+                {/* HealthKit Test Button - COMMENTED OUT */}
+                {/* <TouchableOpacity 
                   style={styles.debugButton}
                   onPress={handleHealthKitTest}
                 >
                   <Text style={styles.debugButtonText}>🔍</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
-                {/* HealthKit Reset Button */}
-                <TouchableOpacity 
+                {/* HealthKit Reset Button - COMMENTED OUT */}
+                {/* <TouchableOpacity 
                   style={styles.debugButton}
                   onPress={handleResetHealthKit}
                 >
                   <Text style={styles.debugButtonText}>🔄</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
-                {/* Debug Biometrics Button */}
-                <TouchableOpacity 
+                {/* Debug Biometrics Button - COMMENTED OUT */}
+                {/* <TouchableOpacity 
                   style={styles.debugButton}
                   onPress={handleShowBiometrics}
                 >
                   <Text style={styles.debugButtonText}>🧪</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             
             {/* Absolutely positioned profile icon - exact same as homepage */}
-            <TouchableOpacity 
-              style={styles.profileIconAbsolute}
+            <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                // Navigation functionality to be implemented later
+                if (epcScores) {
+                  router.push({
+                    pathname: '/epc-explanation-profile',
+                    params: { scores: JSON.stringify(epcScores) }
+                  });
+                }
               }}
+              activeOpacity={0.8}
+              style={styles.profileIconAbsolute}
             >
               <LinearGradient
-                colors={['#D1D1D6', '#8E8E93']}
-                style={styles.profileGradient}
+                colors={['#D1D1D6', '#8E8E93']} // Subtle gradient from lighter to darker grey
+                style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}
               >
-                <Text style={styles.profileText}>EK</Text>
+                <Text style={styles.profileInitials}>{profileInitials || 'U'}</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -1462,32 +1460,6 @@ export default function RadarScreen() {
                 onDayPress={handleDayPress}
               />
             </View>
-
-            {/* Forecast Influence Cards - Dynamic for Today */}
-            {epcScores && (
-              <View style={styles.influenceSection}>
-                <ForecastInfluenceCards
-                  epcScores={epcScores}
-                  currentBurnout={todayBurnout}
-                  confidence={forecastData.length > 0 ? {
-                    score: forecastData[0]?.confidence || 0,
-                    dataQuality: 'good' as const,
-                    daysAvailable: 7,
-                    variance: 0,
-                    standardDeviation: 0
-                  } : {
-                    score: 0,
-                    dataQuality: 'poor' as const,
-                    daysAvailable: 0,
-                    variance: 0,
-                    standardDeviation: 0
-                  }}
-                  recentHistory={recentHistory}
-                  forecastDay={0}
-                  selectedForecastDay={forecastData[0]}
-                />
-              </View>
-            )}
 
             {/* Bottom spacing */}
             <View style={styles.bottomSpacing} />
@@ -1575,11 +1547,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileText: {
+  profileInitials: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    color: '#FFFFFF'
   },
   profileIconAbsolute: {
     position: 'absolute',

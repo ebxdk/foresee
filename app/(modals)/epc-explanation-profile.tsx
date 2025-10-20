@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ApiService } from '../../services/ApiService';
+import PDFViewer from '../../components/PDFViewer';
 
 interface UserProfile {
   id?: string;
@@ -20,6 +21,8 @@ export default function SettingsProfile() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [showPDFViewer, setShowPDFViewer] = useState(false);
+  const [currentPDF, setCurrentPDF] = useState<{ title: string; path: any } | null>(null);
 
   useEffect(() => {
     loadUserProfile();
@@ -106,6 +109,47 @@ export default function SettingsProfile() {
     );
   };
 
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              const result = await ApiService.deleteAccount();
+              if (result.success) {
+                Alert.alert(
+                  'Account Deleted',
+                  'Your account has been successfully deleted.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        router.replace('/get-started');
+                      }
+                    }
+                  ]
+                );
+              } else {
+                Alert.alert('Error', result.message || 'Failed to delete account. Please try again.');
+              }
+            } catch (error) {
+              console.error('Delete account error:', error);
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handlePrivacyPress = () => {
     Alert.alert('Privacy', 'Privacy settings coming soon!');
   };
@@ -115,11 +159,19 @@ export default function SettingsProfile() {
   };
 
   const handlePrivacyPolicyPress = () => {
-    Alert.alert('Privacy Policy', 'Privacy Policy coming soon!');
+    setCurrentPDF({
+      title: 'Privacy Policy',
+      path: require('../../assets/Privacy Policy - Final.pdf'),
+    });
+    setShowPDFViewer(true);
   };
 
   const handleTermsPress = () => {
-    Alert.alert('Terms of Service', 'Terms of Service coming soon!');
+    setCurrentPDF({
+      title: 'Terms of Service',
+      path: require('../../assets/Terms of Service (Beta) - Final.pdf'),
+    });
+    setShowPDFViewer(true);
   };
 
   const handleProfilePress = () => {
@@ -238,6 +290,19 @@ export default function SettingsProfile() {
                 </Text>
               </View>
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.settingsButton, styles.deleteButton]}
+              onPress={handleDeleteAccount}
+              disabled={isLoading}
+            >
+              <View style={styles.settingsButtonContent}>
+                <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                <Text style={[styles.settingsButtonText, styles.deleteButtonText]}>
+                  {isLoading ? 'Deleting account...' : 'Delete Account'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </BlurView>
         </View>
 
@@ -252,6 +317,16 @@ export default function SettingsProfile() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* PDF Viewer Modal */}
+      {currentPDF && (
+        <PDFViewer
+          visible={showPDFViewer}
+          onClose={() => setShowPDFViewer(false)}
+          pdfPath={currentPDF.path}
+          title={currentPDF.title}
+        />
+      )}
     </View>
   );
 }
@@ -428,5 +503,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     textDecorationLine: 'underline',
+  },
+  deleteButton: {
+    backgroundColor: '#FFF6F6',
+    borderColor: '#FAD4D4',
+  },
+  deleteButtonText: {
+    color: '#FF3B30',
   },
 });

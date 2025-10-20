@@ -214,13 +214,11 @@ export async function fillTodayDataGaps(
   
   if (realDataPoints.length === 0) {
     // No real data - use baseline patterns
-    console.log('🎨 INTERPOLATION: No real data found, generating baseline patterns');
     return originalData;
   }
   
   if (realDataPoints.length === 1) {
     // Only one real point - extrapolate from it
-    console.log('🎨 INTERPOLATION: Single real data point, extrapolating patterns');
     const basePoint = realDataPoints[0];
     
     for (const point of originalData) {
@@ -242,7 +240,6 @@ export async function fillTodayDataGaps(
   }
   
   // Multiple real points - interpolate between them
-  console.log(`🎨 INTERPOLATION: Filling gaps between ${realDataPoints.length} real data points`);
   
   let currentRealIndex = 0;
   
@@ -311,12 +308,6 @@ export async function fillTodayDataGaps(
       }
     }
   }
-  
-  const originalRealCount = realDataPoints.length;
-  const totalPoints = filledData.length;
-  const interpolatedCount = totalPoints - originalRealCount;
-  
-  console.log(`🎨 INTERPOLATION: Generated ${interpolatedCount} smooth data points from ${originalRealCount} real points`);
   
   return filledData;
 }

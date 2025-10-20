@@ -58,6 +58,34 @@ const authenticateToken = async (req: express.Request, res: express.Response, ne
   }
 };
 
+// POST /api/auth/check-email - Check if email exists
+router.post('/check-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    const emailExists = await AuthService.checkEmailExists(email);
+    
+    res.status(200).json({
+      success: true,
+      exists: emailExists,
+      message: emailExists ? 'Email already registered' : 'Email is available'
+    });
+  } catch (error) {
+    console.error('Check email error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // POST /api/auth/send-code - Send verification code
 router.post('/send-code', authLimiter, async (req, res) => {
   try {
@@ -237,6 +265,29 @@ router.post('/logout', (req, res) => {
     });
   } catch (error) {
     console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// DELETE /api/auth/delete-account - Delete user account
+router.delete('/delete-account', authenticateToken, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    
+    const result = await AuthService.deleteUser(user.id);
+    
+    if (result.success) {
+      // Clear the auth cookie
+      res.clearCookie('auth_token');
+    }
+    
+    const statusCode = result.success ? 200 : 400;
+    res.status(statusCode).json(result);
+  } catch (error) {
+    console.error('Delete account error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'
