@@ -115,3 +115,7 @@ waitForPort = 8080
 [agent]
 expertMode = true
 integrations = ["javascript_database:1.0.0", "replitmail:1.0.0"]
+
+[deployment]
+deploymentTarget = "vm"
+run = ["tsx", "server/app.ts"]
