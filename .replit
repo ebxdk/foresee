@@ -114,4 +114,4 @@ integrations = ["javascript_database:1.0.0", "replitmail:1.0.0"]
 
 [deployment]
 deploymentTarget = "vm"
-run = ["sh", "-c", "bun run server"]
+run = ["sh", "-c", "NODE_ENV=production bun server/app.ts"]
