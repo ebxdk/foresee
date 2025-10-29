@@ -4,8 +4,8 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Image, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { registerDecayBackgroundFetch } from '../utils/backgroundTasks';
@@ -19,6 +19,8 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const overlayOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Register background fetch task that runs decay/score tails
@@ -30,6 +32,7 @@ export default function RootLayout() {
     const loadAssets = async () => {
       try {
         const imageAssets = [
+          require('../assets/images/foreseelogoapp.png'),
           require('../assets/images/8CDE2926-8B4A-44A9-84DC-18DD2CB81594-removebg-preview 2.png'),
           require('../assets/images/Capcity_Creator_Logo_copy-removebg-preview.png'),
           require('../assets/images/yearRecap.png'),
@@ -73,8 +76,13 @@ export default function RootLayout() {
   const onLayoutRootView = useCallback(async () => {
     if (loaded && assetsLoaded) {
       await SplashScreen.hideAsync();
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 450,
+        useNativeDriver: true,
+      }).start(() => setOverlayVisible(false));
     }
-  }, [loaded, assetsLoaded]);
+  }, [loaded, assetsLoaded, overlayOpacity]);
 
   if (!loaded || !assetsLoaded) {
     return null; // Keep splash visible
@@ -373,6 +381,27 @@ export default function RootLayout() {
             <Stack.Screen name="+not-found" options={{ headerShown: true, title: 'Oops!' }} />
           </Stack>
           <StatusBar style="dark" translucent={false} backgroundColor="#FFFFFF" />
+          {overlayVisible ? (
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#FFFFFF',
+                opacity: overlayOpacity,
+              }}
+            >
+              <Image
+                source={require('../assets/images/foreseelogoapp.png')}
+                style={{ width: 180, height: 180, resizeMode: 'contain' }}
+              />
+            </Animated.View>
+          ) : null}
         </ThemeProvider>
       </QuestionnaireProvider>
     </GestureHandlerRootView>

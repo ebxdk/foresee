@@ -3,20 +3,20 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, NativeModules, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 // Import components and utilities
 import BurnoutForecastWidget from '../../components/BurnoutForecastWidget';
 import BurnoutGraphChart from '../../components/BurnoutGraphChart';
 import { getActionablesForWeakestPillar } from '../../utils/actionables';
-import { getAppleHealthDataOrMock, getHealthAuthorizationDebug, getHealthKitStatus, getHealthReadProbe, getTodayStepsDebug, initHealthKit, resetHealthKitBridgeStatus, subscribeToRealtimeHealthChanges } from '../../utils/appleHealth';
+import { getAppleHealthDataRealOnly, getHealthKitStatus, initHealthKit, resetHealthKitBridgeStatus, subscribeToRealtimeHealthChanges } from '../../utils/appleHealth';
 import { calculateBurnoutFromScores } from '../../utils/burnoutCalc';
 import { getAppleWeatherGradientColor } from '../../utils/colorUtils';
 import { EPCScores } from '../../utils/epcScoreCalc';
-import { generateSmartForecast, generateConfidenceIntervals } from '../../utils/forecastCalc';
+import { ForecastConfidence, generateConfidenceIntervals, generateSmartForecast } from '../../utils/forecastCalc';
 import { MinuteDataManager } from '../../utils/minuteDataManager';
-import { convertAppleHealthToEPCAdjustments } from '../../utils/mockAppleHealthData';
+// Removed mock data imports - using real HealthKit only
 import { DEFAULT_INTERPOLATION_CONFIG, fillTodayDataGaps } from '../../utils/smartInterpolation';
 import * as Storage from '../../utils/storage';
 
@@ -94,13 +94,60 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
 
     // Get Apple Health data (real biometric data only) and apply adjustments
     try {
-      const appleHealthData = await getAppleHealthDataOrMock();
+      const appleHealthData = await getAppleHealthDataRealOnly();
       
-      // Only apply adjustments if real data exists
+      // Apply adjustments using real data
       let adjustedScores = epcScores;
       
       if (appleHealthData && appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
-        const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
+        // Apply health adjustments based on real data
+        const healthAdjustments = {
+          energyAdjustment: 0,
+          purposeAdjustment: 0,
+          connectionAdjustment: 0,
+        };
+        
+        // Positive adjustments (good health metrics)
+        if (appleHealthData.steps.count >= 10000) {
+          healthAdjustments.energyAdjustment += 5;
+        }
+        if (appleHealthData.sleep.hoursSlept >= 8) {
+          healthAdjustments.energyAdjustment += 5;
+        }
+        if (appleHealthData.activityRings.exercise.current >= 30) {
+          healthAdjustments.purposeAdjustment += 3;
+        }
+        
+        // Negative adjustments (poor health metrics)
+        if (appleHealthData.steps.count < 5000) {
+          healthAdjustments.energyAdjustment -= 5;
+        }
+        if (appleHealthData.sleep.hoursSlept < 6) {
+          healthAdjustments.energyAdjustment -= 5;
+        }
+        if (appleHealthData.sleep.hoursSlept < 5) {
+          healthAdjustments.energyAdjustment -= 3; // Additional penalty for very poor sleep
+        }
+        
+        // Heart rate adjustments
+        if (appleHealthData.heartRate.resting > 0) {
+          if (appleHealthData.heartRate.resting < 60) {
+            // Low resting HR (good fitness) = more energy
+            healthAdjustments.energyAdjustment += 3;
+          } else if (appleHealthData.heartRate.resting > 80) {
+            // High resting HR (stress/poor fitness) = less energy
+            healthAdjustments.energyAdjustment -= 3;
+          }
+        }
+        
+        // Active energy adjustments
+        if (appleHealthData.activityRings.move.current >= 500) {
+          healthAdjustments.energyAdjustment += 3;
+          healthAdjustments.purposeAdjustment += 2;
+        } else if (appleHealthData.activityRings.move.current < 200) {
+          healthAdjustments.energyAdjustment -= 3;
+        }
+        
         adjustedScores = {
           energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
           purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
@@ -694,7 +741,7 @@ export default function RadarScreen() {
       if (scores) {
         // Fetch Apple Health data (real biometric data only)
         try {
-          const appleHealthData = await getAppleHealthDataOrMock();
+          const appleHealthData = await getAppleHealthDataRealOnly();
           
           // Only proceed if we have HealthKit data
           if (!appleHealthData) {
@@ -708,7 +755,53 @@ export default function RadarScreen() {
             await Storage.storeHourlyBurnoutData(currentHour, rawBurnoutPercentage);
             await Storage.storeMinuteBurnoutData(currentMinute, rawBurnoutPercentage);
           } else {
-            const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
+            // Apply health adjustments based on real data
+            const healthAdjustments = {
+              energyAdjustment: 0,
+              purposeAdjustment: 0,
+              connectionAdjustment: 0,
+            };
+            
+            // Positive adjustments (good health metrics)
+            if (appleHealthData.steps.count >= 10000) {
+              healthAdjustments.energyAdjustment += 5;
+            }
+            if (appleHealthData.sleep.hoursSlept >= 8) {
+              healthAdjustments.energyAdjustment += 5;
+            }
+            if (appleHealthData.activityRings.exercise.current >= 30) {
+              healthAdjustments.purposeAdjustment += 3;
+            }
+            
+            // Negative adjustments (poor health metrics)
+            if (appleHealthData.steps.count < 5000) {
+              healthAdjustments.energyAdjustment -= 5;
+            }
+            if (appleHealthData.sleep.hoursSlept < 6) {
+              healthAdjustments.energyAdjustment -= 5;
+            }
+            if (appleHealthData.sleep.hoursSlept < 5) {
+              healthAdjustments.energyAdjustment -= 3; // Additional penalty for very poor sleep
+            }
+            
+            // Heart rate adjustments
+            if (appleHealthData.heartRate.resting > 0) {
+              if (appleHealthData.heartRate.resting < 60) {
+                // Low resting HR (good fitness) = more energy
+                healthAdjustments.energyAdjustment += 3;
+              } else if (appleHealthData.heartRate.resting > 80) {
+                // High resting HR (stress/poor fitness) = less energy
+                healthAdjustments.energyAdjustment -= 3;
+              }
+            }
+            
+            // Active energy adjustments
+            if (appleHealthData.activityRings.move.current >= 500) {
+              healthAdjustments.energyAdjustment += 3;
+              healthAdjustments.purposeAdjustment += 2;
+            } else if (appleHealthData.activityRings.move.current < 200) {
+              healthAdjustments.energyAdjustment -= 3;
+            }
 
           const adjustedScores = {
             energy: Math.max(0, Math.min(100, scores.energy + healthAdjustments.energyAdjustment)),
@@ -906,33 +999,23 @@ export default function RadarScreen() {
     loadGraphDataRef.current = loadGraphData;
   }, [loadGraphData]);
 
-  // Request HealthKit permissions when radar page loads
+  // Request HealthKit permissions when radar page loads (ONCE)
+  const requestHealthKitPermissionsRef = useRef(false);
   const requestHealthKitPermissions = useCallback(async () => {
+    // Prevent repeated calls
+    if (requestHealthKitPermissionsRef.current) {
+      return;
+    }
+    requestHealthKitPermissionsRef.current = true;
+    
     try {
       const success = await initHealthKit();
-      if (success) {
-        console.log('✅ HealthKit permissions granted');
-      } else {
-        // console.log('⚠️ HealthKit permissions not available (using mock data)');
-        
-        // Check what specific permissions are denied and provide guidance
-        const { checkHealthKitPermissions } = await import('../../utils/appleHealth');
-        const permissionCheck = await checkHealthKitPermissions();
-        
-        if (permissionCheck.needsUserAction) {
-          // Silently handle HealthKit permission needs
-          // (logging disabled to prevent console spam)
-          
-          // You could show an alert or modal here to guide the user
-          // Alert.alert(
-          //   'Health Data Access Required',
-          //   permissionCheck.guidanceMessage,
-          //   [{ text: 'OK' }]
-          // );
-        }
-      }
+      // Silent success - no logging needed
     } catch (error) {
-      console.log('⚠️ HealthKit permission request failed:', error);
+      // Silent error - only log if critical
+      if (__DEV__) {
+        console.warn('HealthKit initialization failed:', error);
+      }
     }
   }, []);
 
@@ -968,7 +1051,7 @@ export default function RadarScreen() {
       
       // Test radar-specific functionality in development
       if (__DEV__ && false && confidenceLoggerRef) { // Disabled excessive logging
-        confidenceLoggerRef.logFeatureTest(
+        confidenceLoggerRef?.logFeatureTest(
           'Radar Data Loading',
           100,
           'Radar data loaded successfully with environment-aware optimizations',
@@ -1002,7 +1085,7 @@ export default function RadarScreen() {
         try { unsubscribe(); } catch (_) {}
       }
     };
-  }, [requestHealthKitPermissions, loadRadarData]); // Run when biometric handlers change
+  }, [loadRadarData]); // Run when radar data handler changes
 
   // Refresh data when EPC scores change (every 5 minutes for smooth updates)
   useEffect(() => {
@@ -1063,109 +1146,171 @@ export default function RadarScreen() {
     }
   };
 
-  // Debug: show current biometric data + step breakdown (real HealthKit data only)
-  const handleShowBiometrics = async () => {
-    try {
+  // Debug: Fetch and display HealthKit data (following react-native-health implementation guide)
+  const handleShowBiometrics = () => {
+    const AppleHealthKit = NativeModules.AppleHealthKit;
+    
       console.log('🔍 Starting HealthKit debug...');
-      
-      // Step 1: Check basic HealthKit availability
-      const { checkHealthKitPermissions } = await import('../../utils/appleHealth');
-      const permissionCheck = await checkHealthKitPermissions();
-      
-      if (!permissionCheck.hasPermissions) {
+    console.log('NativeModules:', Object.keys(NativeModules));
+    console.log('AppleHealthKit module:', AppleHealthKit);
+    
+    if (Platform.OS !== 'ios') {
+      Alert.alert('iOS Only', 'HealthKit is only available on iOS devices.');
+      return;
+    }
+    
+    if (!AppleHealthKit || typeof AppleHealthKit.isAvailable !== 'function') {
         Alert.alert(
-          'HealthKit Permissions Required',
-          permissionCheck.guidanceMessage,
-          [{ text: 'OK' }]
+        'HealthKit Not Available',
+        'HealthKit module is not available. This app requires a native iOS build with react-native-health.\n\nPlease ensure:\n• You are on a real iOS device (not simulator)\n• App is built with native modules\n• react-native-health is properly installed'
         );
         return;
       }
       
-      console.log('✅ HealthKit permissions verified');
-      
-      // Step 2: Get authorization debug info first
-      const auth = await getHealthAuthorizationDebug();
-      console.log('📊 Authorization status:', auth);
-      
-      // Step 3: Try to get basic health data
-      let data;
-      try {
-        data = await getAppleHealthDataOrMock();
-        console.log('✅ Health data retrieved successfully');
-      } catch (error) {
-        console.error('❌ Failed to get health data:', error);
-        throw new Error(`Failed to get health data: ${(error as Error).message}`);
+    // Step 1: Check if HealthKit is available on this device
+    AppleHealthKit.isAvailable((err: any, available: boolean) => {
+      if (err) {
+        console.log('❌ Error checking HealthKit availability:', err);
+        Alert.alert('Error', `Failed to check HealthKit availability: ${err}`);
+        return;
       }
       
-      // Step 4: Try to get detailed debug info (these might fail)
-      let stepsDebug = null;
-      let probe = null;
-      
-      try {
-        stepsDebug = await getTodayStepsDebug();
-        console.log('✅ Steps debug info retrieved');
-      } catch (error) {
-        console.warn('⚠️ Steps debug failed:', (error as Error).message);
+      if (!available) {
+        Alert.alert('HealthKit Not Available', 'HealthKit is not available on this device.');
+        return;
       }
       
-      try {
-        probe = await getHealthReadProbe();
-        console.log('✅ Health read probe retrieved');
-      } catch (error) {
-        console.warn('⚠️ Health read probe failed:', (error as Error).message);
-      }
+      console.log('✅ HealthKit is available');
       
-      // Build summary with available data
-      let summary = `Steps (today): ${data.steps.count}\n`;
-      summary += `Exercise min: ${data.activityRings.exercise.current}\n`;
-      summary += `Active energy: ${data.activityRings.move.current} kcal\n`;
-      summary += `Sleep: ${data.sleep.hoursSlept}h (${data.sleep.sleepQuality})\n`;
-      summary += `Resting HR: ${data.heartRate.resting}\n`;
-      summary += `HRV: ${data.heartRate.hrv}\n\n`;
+      // Step 2: Initialize HealthKit and request permissions
+      const permissions = {
+        permissions: {
+          read: [
+            'StepCount',
+            'DistanceWalkingRunning',
+            'FlightsClimbed',
+            'ActiveEnergyBurned',
+            'HeartRate',
+            'RestingHeartRate',
+            'HeartRateVariability',
+            'SleepAnalysis',
+            'MindfulSession',
+          ],
+          write: [],
+        },
+      };
       
-      summary += `Bridge: ${auth.bridge} | Available: ${auth.isAvailable}\n`;
-      
-      if (auth.statuses.length > 0) {
-        const authStr = auth.statuses
-          .map(s => `• ${s.type}: ${s.status}`)
-          .join('\n');
-        summary += `Authorization:\n${authStr}\n\n`;
-      }
-      
-      if (stepsDebug) {
-        const startStr = stepsDebug.start.toLocaleString();
-        const endStr = stepsDebug.end.toLocaleString();
-        summary += `Window: ${startStr} → ${endStr}\n`;
-        summary += `Method: ${stepsDebug.method}\n`;
+      AppleHealthKit.initHealthKit(permissions, (initErr: any, initResults: any) => {
+        if (initErr) {
+          console.log('❌ HealthKit initialization error:', initErr);
+          Alert.alert('Authorization Required', 'Please grant HealthKit permissions in Settings > Health > Data Access & Devices.');
+          return;
+        }
         
-        if (stepsDebug.perSource.length > 0) {
-          const sourcesStr = stepsDebug.perSource
-            .map(s => `• ${s.source || 'Unknown'}${s.device ? ` (${s.device})` : ''}: ${s.count}`)
-            .join('\n');
-          summary += `By Source:\n${sourcesStr}\n`;
-        }
-      }
-      
-      if (probe) {
-        summary += `Read probe: steps=${probe.stepsToday}, energy=${probe.activeEnergyKcalToday} kcal, exercise=${probe.exerciseMinToday} min, sleep=${probe.sleepLastNightHours} h\n`;
-        if (probe.restingHRMostRecent) {
-          summary += `RHR: ${probe.restingHRMostRecent.value} bpm (${probe.restingHRMostRecent.date})\n`;
-        }
-        if (probe.hrvMostRecentMs) {
-          summary += `HRV: ${probe.hrvMostRecentMs.value} ms (${probe.hrvMostRecentMs.date})\n`;
-        }
-      }
-      
-      Alert.alert('Biometrics (real data)', summary);
-      
-    } catch (e) {
-      console.error('❌ HealthKit debug error:', e);
-      const errorMessage = (e as Error).message;
-      Alert.alert(
-        'HealthKit Error', 
-        `Failed to read biometrics: ${errorMessage}\n\nDebug info:\n• Platform: ${Platform.OS}\n• Error: ${errorMessage}\n\nPlease ensure:\n• You're on a real iOS device\n• HealthKit permissions are granted\n• App is built with native modules`
-      );
-    }
+        console.log('✅ HealthKit initialized successfully');
+        
+        // Step 3: Fetch health data using callback-based API
+        const now = new Date();
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        
+        const options = {
+          startDate: startOfToday.toISOString(),
+          endDate: now.toISOString(),
+        };
+        
+        const healthData: any = {};
+        let queriesCompleted = 0;
+        const totalQueries = 5;
+        
+        const checkIfComplete = () => {
+          queriesCompleted++;
+          if (queriesCompleted === totalQueries) {
+            // All queries completed, show results
+            let summary = '📊 HealthKit Data (Today):\n\n';
+            
+            // Show all data points, including those with 0 or no data
+            summary += `Steps: ${healthData.StepCount ? `${healthData.StepCount.value} ${healthData.StepCount.unit}` : 'No data'}\n`;
+            summary += `Active Energy: ${healthData.ActiveEnergyBurned ? `${healthData.ActiveEnergyBurned.value} ${healthData.ActiveEnergyBurned.unit}` : 'No data'}\n`;
+            summary += `Distance: ${healthData.DistanceWalkingRunning ? `${healthData.DistanceWalkingRunning.value} ${healthData.DistanceWalkingRunning.unit}` : 'No data'}\n`;
+            summary += `Heart Rate: ${healthData.HeartRate ? `${healthData.HeartRate.value} ${healthData.HeartRate.unit}` : 'No data'}\n`;
+            summary += `Sleep (24h): ${healthData.Sleep ? `${healthData.Sleep.value} ${healthData.Sleep.unit}` : 'No data'}\n`;
+            
+            console.log('✅ All health data fetched:', healthData);
+            Alert.alert('Health Data Retrieved', summary);
+          }
+        };
+        
+        // Query 1: Step Count
+        AppleHealthKit.getStepCount(options, (err: any, results: any) => {
+          if (!err && results && results.value) {
+            console.log('✅ Step count:', results.value);
+            healthData.StepCount = { value: Math.round(results.value), unit: 'steps' };
+          } else {
+            console.log('⚠️ Step count error:', err);
+          }
+          checkIfComplete();
+        });
+        
+        // Query 2: Active Energy Burned
+        AppleHealthKit.getActiveEnergyBurned(options, (err: any, results: any) => {
+          if (!err && results && results.value) {
+            console.log('✅ Active energy:', results.value);
+            healthData.ActiveEnergyBurned = { value: Math.round(results.value), unit: 'kcal' };
+          } else {
+            console.log('⚠️ Active energy - err:', err, 'results:', results);
+          }
+          checkIfComplete();
+        });
+        
+        // Query 3: Distance Walking/Running
+        AppleHealthKit.getDistanceWalkingRunning(options, (err: any, results: any) => {
+          if (!err && results && results.value) {
+            console.log('✅ Distance:', results.value);
+            healthData.DistanceWalkingRunning = { value: (results.value / 1000).toFixed(2), unit: 'km' };
+          } else {
+            console.log('⚠️ Distance error:', err);
+          }
+          checkIfComplete();
+        });
+        
+        // Query 4: Heart Rate (get latest sample)
+        AppleHealthKit.getHeartRateSamples(options, (err: any, results: any) => {
+          if (!err && results && results.length > 0) {
+            const latest = results[results.length - 1];
+            console.log('✅ Heart rate:', latest.value);
+            healthData.HeartRate = { value: Math.round(latest.value), unit: 'bpm' };
+          } else {
+            console.log('⚠️ Heart rate - err:', err, 'results length:', results?.length || 0);
+          }
+          checkIfComplete();
+        });
+        
+        // Query 5: Sleep Analysis (last 24 hours)
+        const sleepOptions = {
+          startDate: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+          endDate: now.toISOString(),
+        };
+        
+        AppleHealthKit.getSleepSamples(sleepOptions, (err: any, results: any) => {
+          if (!err && results && results.length > 0) {
+            const totalMinutes = results.reduce((sum: number, sample: any) => {
+              if (sample.value === 'ASLEEP' || sample.value === 'INBED') {
+                const duration = (new Date(sample.endDate).getTime() - new Date(sample.startDate).getTime()) / (1000 * 60);
+                return sum + duration;
+              }
+              return sum;
+            }, 0);
+            const hours = (totalMinutes / 60).toFixed(1);
+            console.log('✅ Sleep:', hours, 'hours');
+            healthData.Sleep = { value: hours, unit: 'hours' };
+          } else {
+            console.log('⚠️ Sleep - err:', err, 'results length:', results?.length || 0);
+          }
+          checkIfComplete();
+        });
+      });
+    });
   };
 
   useFocusEffect(
@@ -1173,7 +1318,7 @@ export default function RadarScreen() {
       let isActive = true;
 
       const refreshOnFocus = async () => {
-        await requestHealthKitPermissions();
+        // HealthKit permissions already requested on mount - no need to repeat
         if (!isActive) return;
 
         await loadRadarData(false);
@@ -1187,7 +1332,7 @@ export default function RadarScreen() {
       return () => {
         isActive = false;
       };
-    }, [requestHealthKitPermissions, loadRadarData, loadGraphData])
+    }, [loadRadarData, loadGraphData])
   );
 
   // Real-time forecast updates when EPC scores change
@@ -1373,12 +1518,12 @@ export default function RadarScreen() {
                 </TouchableOpacity> */}
 
                 {/* Debug Biometrics Button - COMMENTED OUT */}
-                {/* <TouchableOpacity 
+                <TouchableOpacity 
                   style={styles.debugButton}
                   onPress={handleShowBiometrics}
                 >
                   <Text style={styles.debugButtonText}>🧪</Text>
-                </TouchableOpacity> */}
+                </TouchableOpacity>
               </View>
             
             {/* Absolutely positioned profile icon - exact same as homepage */}

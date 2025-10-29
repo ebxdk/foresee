@@ -99,10 +99,7 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
   // Use the data prop directly, as filtering for 'Today' is handled upstream
   const currentData = data;
   
-  // Minimal debug logging
-  if (__DEV__ && currentData.length === 0) {
-    console.warn(`No data for ${selectedPeriod}`);
-  }
+  // Silent handling - no need to log empty data (expected during initial load)
 
   // If no data, render a helpful placeholder
   if (currentData.length === 0) {

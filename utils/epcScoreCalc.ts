@@ -1,7 +1,79 @@
 // EPC Score Calculation Utility
 // Maps user answers to Energy, Purpose, and Connection scores
 
-import { AppleHealthData, convertAppleHealthToEPCAdjustments } from './mockAppleHealthData'; // Import interfaces and functions for biometric data
+// Apple Health Data Interface
+export interface AppleHealthData {
+  steps: {
+    count: number;
+    goal: number;
+    percentage: number;
+    trend: 'up' | 'down' | 'stable';
+  };
+  activityRings: {
+    move: {
+      current: number;
+      goal: number;
+      percentage: number;
+    };
+    exercise: {
+      current: number;
+      goal: number;
+      percentage: number;
+    };
+    stand: {
+      current: number;
+      goal: number;
+      percentage: number;
+    };
+  };
+  sleep: {
+    hoursSlept: number;
+    sleepQuality: 'Poor' | 'Fair' | 'Good' | 'Excellent';
+    bedtime: string;
+    wakeTime: string;
+    sleepStages: {
+      deep: number;
+      core: number;
+      rem: number;
+      awake: number;
+    };
+  };
+  heartRate: {
+    resting: number;
+    current: number;
+    max: number;
+    hrv: number;
+    trend: 'up' | 'down' | 'stable';
+  };
+  mindfulness: {
+    minutesToday: number;
+    sessionsCompleted: number;
+    weeklyGoal: number;
+    currentStreak: number;
+  };
+  mood: {
+    currentMood: 'Very Low' | 'Low' | 'Neutral' | 'High' | 'Very High';
+    stressLevel: number;
+    anxietyLevel: number;
+    energyLevel: number;
+  };
+  workouts: {
+    todayWorkouts: number;
+    weeklyWorkouts: number;
+    favoriteWorkoutType: string;
+    avgWorkoutDuration: number;
+  };
+  environmental: {
+    noiseLevel: number;
+    airQuality: 'Poor' | 'Fair' | 'Good' | 'Excellent';
+    uvIndex: number;
+  };
+  lastUpdated: Date;
+  source: 'real' | 'mock';
+  permissionsGranted: boolean;
+}
+
+// Removed mock data imports - using real HealthKit only
 
 export interface EPCScores {
   energy: number;
@@ -75,7 +147,23 @@ export function calculateEPCScores(answers: number[], biometricData?: AppleHealt
   // Apply biometric adjustments if data is provided
   if (biometricData) {
     console.log('Applying biometric adjustments...');
-    const adjustments = convertAppleHealthToEPCAdjustments(biometricData);
+    // Apply health adjustments based on real data
+    const adjustments = {
+      energyAdjustment: 0,
+      purposeAdjustment: 0,
+      connectionAdjustment: 0,
+    };
+    
+    // Simple health-based adjustments
+    if (biometricData.steps.count >= 10000) {
+      adjustments.energyAdjustment += 5;
+    }
+    if (biometricData.sleep.hoursSlept >= 8) {
+      adjustments.energyAdjustment += 5;
+    }
+    if (biometricData.activityRings.exercise.current >= 30) {
+      adjustments.purposeAdjustment += 3;
+    }
 
     finalScores = {
       energy: Math.max(0, Math.min(100, finalScores.energy + adjustments.energyAdjustment)),

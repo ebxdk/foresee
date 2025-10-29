@@ -16,11 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Import components and utilities
 import BurnoutGraphChart from '../components/BurnoutGraphChart';
-import { getAppleHealthDataOrMock } from '../utils/appleHealth';
+import { getAppleHealthDataRealOnly } from '../utils/appleHealth';
 import { calculateBurnoutFromScores } from '../utils/burnoutCalc';
 import { getGreenToOrangeGradient } from '../utils/colorUtils';
 import { generateSmartForecast } from '../utils/forecastCalc';
-import { convertAppleHealthToEPCAdjustments } from '../utils/mockAppleHealthData';
+// Removed mock data imports - using real HealthKit only
 import { getEPCScores, getRecentBurnoutLevels, storeBurnoutHistory } from '../utils/storage';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -32,6 +32,17 @@ interface ForecastDay {
   fullDate: Date;
   month: string;
   dayOfWeek: string;
+  epcScores?: {
+    energy: number;
+    purpose: number;
+    connection: number;
+  };
+  biometricData?: {
+    steps: number;
+    sleep: number;
+    heartRate: number;
+    activeEnergy: number;
+  };
 }
 
 // Add interface for graph data points
@@ -55,9 +66,56 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
     let adjustedScores = { ...epcScores };
 
     try {
-      const appleHealthData = await getAppleHealthDataOrMock();
+      const appleHealthData = await getAppleHealthDataRealOnly();
       if (appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
-        const healthAdjustments = convertAppleHealthToEPCAdjustments(appleHealthData);
+        // Apply health adjustments based on real data
+        const healthAdjustments = {
+          energyAdjustment: 0,
+          purposeAdjustment: 0,
+          connectionAdjustment: 0,
+        };
+        
+        // Positive adjustments (good health metrics)
+        if (appleHealthData.steps.count >= 10000) {
+          healthAdjustments.energyAdjustment += 5;
+        }
+        if (appleHealthData.sleep.hoursSlept >= 8) {
+          healthAdjustments.energyAdjustment += 5;
+        }
+        if (appleHealthData.activityRings.exercise.current >= 30) {
+          healthAdjustments.purposeAdjustment += 3;
+        }
+        
+        // Negative adjustments (poor health metrics)
+        if (appleHealthData.steps.count < 5000) {
+          healthAdjustments.energyAdjustment -= 5;
+        }
+        if (appleHealthData.sleep.hoursSlept < 6) {
+          healthAdjustments.energyAdjustment -= 5;
+        }
+        if (appleHealthData.sleep.hoursSlept < 5) {
+          healthAdjustments.energyAdjustment -= 3; // Additional penalty for very poor sleep
+        }
+        
+        // Heart rate adjustments
+        if (appleHealthData.heartRate.resting > 0) {
+          if (appleHealthData.heartRate.resting < 60) {
+            // Low resting HR (good fitness) = more energy
+            healthAdjustments.energyAdjustment += 3;
+          } else if (appleHealthData.heartRate.resting > 80) {
+            // High resting HR (stress/poor fitness) = less energy
+            healthAdjustments.energyAdjustment -= 3;
+          }
+        }
+        
+        // Active energy adjustments
+        if (appleHealthData.activityRings.move.current >= 500) {
+          healthAdjustments.energyAdjustment += 3;
+          healthAdjustments.purposeAdjustment += 2;
+        } else if (appleHealthData.activityRings.move.current < 200) {
+          healthAdjustments.energyAdjustment -= 3;
+        }
+        
         adjustedScores = {
           energy: Math.max(0, Math.min(100, epcScores.energy + healthAdjustments.energyAdjustment)),
           purpose: Math.max(0, Math.min(100, epcScores.purpose + healthAdjustments.purposeAdjustment)),
@@ -77,14 +135,35 @@ const generateExtendedForecast = async (): Promise<ForecastDay[]> => {
 
     await storeBurnoutHistory(todayBurnout);
 
-    return buildForecastDays(todayBurnout, forecast);
+    // Get biometric data for the forecast
+    let biometricData = undefined;
+    try {
+      const appleHealthData = await getAppleHealthDataRealOnly();
+      if (appleHealthData.source === 'real' && appleHealthData.permissionsGranted) {
+        biometricData = {
+          steps: appleHealthData.steps.count,
+          sleep: appleHealthData.sleep.hoursSlept,
+          heartRate: appleHealthData.heartRate.resting,
+          activeEnergy: appleHealthData.activityRings.move.current,
+        };
+      }
+    } catch (error) {
+      // Biometric data not available
+    }
+
+    return buildForecastDays(todayBurnout, forecast, adjustedScores, biometricData);
   } catch (error) {
     console.error('Error generating extended forecast:', error);
     return buildBaselineForecast();
   }
 };
 
-const buildForecastDays = (todayBurnout: number, forecast: number[]): ForecastDay[] => {
+const buildForecastDays = (
+  todayBurnout: number, 
+  forecast: number[], 
+  epcScores?: { energy: number; purpose: number; connection: number },
+  biometricData?: { steps: number; sleep: number; heartRate: number; activeEnergy: number }
+): ForecastDay[] => {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const truncatedForecast = forecast.slice(0, 9);
@@ -103,7 +182,10 @@ const buildForecastDays = (todayBurnout: number, forecast: number[]): ForecastDa
       percentage,
       fullDate: date,
       month: months[date.getMonth()],
-      dayOfWeek: daysOfWeek[date.getDay()]
+      dayOfWeek: daysOfWeek[date.getDay()],
+      // Only include EPC scores and biometric data for today (index 0)
+      epcScores: index === 0 ? epcScores : undefined,
+      biometricData: index === 0 ? biometricData : undefined,
     };
   });
 };
@@ -204,69 +286,116 @@ const DayContent = React.memo(({
       <View style={styles.reasoningSection}>
         <Text style={styles.reasoningTitle}>What's Influencing This Forecast</Text>
         
-        {/* Sleep Quality */}
-        <View style={styles.reasonCard}>
-          <View style={styles.reasonHeader}>
-            <Text style={styles.reasonIcon}>😴</Text>
-            <Text style={styles.reasonCardTitle}>Sleep Quality</Text>
-            <Text style={styles.reasonImpact}>+12%</Text>
+        {/* EPC Scores Card */}
+        {day.epcScores && (
+          <View style={styles.reasonCard}>
+            <View style={styles.reasonHeader}>
+              <Text style={styles.reasonIcon}>📊</Text>
+              <Text style={styles.reasonCardTitle}>EPC Score Breakdown</Text>
+              <Text style={styles.reasonImpact}>{day.percentage}%</Text>
+            </View>
+            <Text style={styles.reasonDescription}>
+              Your current Energy, Purpose, and Connection scores are the primary factors in your burnout forecast.
+            </Text>
+            <View style={styles.reasonMetrics}>
+              <Text style={styles.reasonMetric}>⚡ Energy: {Math.round(day.epcScores.energy)}</Text>
+              <Text style={styles.reasonMetric}>🎯 Purpose: {Math.round(day.epcScores.purpose)}</Text>
+              <Text style={styles.reasonMetric}>🤝 Connection: {Math.round(day.epcScores.connection)}</Text>
+            </View>
           </View>
-          <Text style={styles.reasonDescription}>
-            Your recent sleep patterns show 7.2 hours average with good deep sleep. This is helping reduce your burnout risk.
-          </Text>
-          <View style={styles.reasonMetrics}>
-            <Text style={styles.reasonMetric}>Avg Sleep: 7.2 hrs</Text>
-            <Text style={styles.reasonMetric}>Quality: Good</Text>
-          </View>
-        </View>
+        )}
 
-        {/* Energy Levels */}
-        <View style={styles.reasonCard}>
-          <View style={styles.reasonHeader}>
-            <Text style={styles.reasonIcon}>⚡</Text>
-            <Text style={styles.reasonCardTitle}>Energy Patterns</Text>
-            <Text style={[styles.reasonImpact, { color: '#FF9500' }]}>-8%</Text>
+        {/* Sleep Quality - Only show if biometric data available */}
+        {day.biometricData && day.biometricData.sleep > 0 && (
+          <View style={styles.reasonCard}>
+            <View style={styles.reasonHeader}>
+              <Text style={styles.reasonIcon}>😴</Text>
+              <Text style={styles.reasonCardTitle}>Sleep Quality</Text>
+              <Text style={[styles.reasonImpact, { color: day.biometricData.sleep >= 7 ? '#34C759' : day.biometricData.sleep >= 6 ? '#FF9500' : '#FF3B30' }]}>
+                {day.biometricData.sleep >= 7 ? '+5%' : day.biometricData.sleep >= 6 ? '±0%' : '-5%'}
+              </Text>
+            </View>
+            <Text style={styles.reasonDescription}>
+              {day.biometricData.sleep >= 8 
+                ? 'Excellent sleep (8+ hours) is helping reduce your burnout risk significantly.' 
+                : day.biometricData.sleep >= 7
+                ? 'Good sleep (7+ hours) is supporting your energy levels.'
+                : day.biometricData.sleep >= 6
+                ? 'Sleep is adequate but could be improved for better energy levels.'
+                : 'Poor sleep (<6 hours) is significantly increasing your burnout risk.'}
+            </Text>
+            <View style={styles.reasonMetrics}>
+              <Text style={styles.reasonMetric}>Sleep: {day.biometricData.sleep.toFixed(1)} hrs</Text>
+              <Text style={styles.reasonMetric}>Quality: {day.biometricData.sleep >= 8 ? 'Excellent' : day.biometricData.sleep >= 7 ? 'Good' : day.biometricData.sleep >= 6 ? 'Fair' : 'Poor'}</Text>
+            </View>
           </View>
-          <Text style={styles.reasonDescription}>
-            Energy dips in the afternoon are contributing to burnout risk. Consider scheduling lighter tasks during 2-4 PM.
-          </Text>
-          <View style={styles.reasonMetrics}>
-            <Text style={styles.reasonMetric}>Morning: High</Text>
-            <Text style={styles.reasonMetric}>Afternoon: Low</Text>
-          </View>
-        </View>
+        )}
 
-        {/* Stress Patterns */}
-        <View style={styles.reasonCard}>
-          <View style={styles.reasonHeader}>
-            <Text style={styles.reasonIcon}>📊</Text>
-            <Text style={styles.reasonCardTitle}>Recent Stress</Text>
-            <Text style={[styles.reasonImpact, { color: '#FF3B30' }]}>-15%</Text>
+        {/* Activity Levels - Steps */}
+        {day.biometricData && day.biometricData.steps > 0 && (
+          <View style={styles.reasonCard}>
+            <View style={styles.reasonHeader}>
+              <Text style={styles.reasonIcon}>👟</Text>
+              <Text style={styles.reasonCardTitle}>Activity Level</Text>
+              <Text style={[styles.reasonImpact, { color: day.biometricData.steps >= 10000 ? '#34C759' : day.biometricData.steps >= 5000 ? '#FF9500' : '#FF3B30' }]}>
+                {day.biometricData.steps >= 10000 ? '+5%' : day.biometricData.steps >= 5000 ? '±0%' : '-5%'}
+              </Text>
+            </View>
+            <Text style={styles.reasonDescription}>
+              {day.biometricData.steps >= 10000
+                ? 'Great activity! 10,000+ steps helps boost energy and reduce burnout.'
+                : day.biometricData.steps >= 5000
+                ? 'Moderate activity. Consider adding more movement to boost energy.'
+                : 'Low activity (<5,000 steps) is contributing to lower energy levels.'}
+            </Text>
+            <View style={styles.reasonMetrics}>
+              <Text style={styles.reasonMetric}>Steps: {day.biometricData.steps.toLocaleString()}</Text>
+              <Text style={styles.reasonMetric}>Active Energy: {Math.round(day.biometricData.activeEnergy)} kcal</Text>
+            </View>
           </View>
-          <Text style={styles.reasonDescription}>
-            Elevated stress levels over the past 3 days are increasing burnout probability. Your stress peaked during work hours.
-          </Text>
-          <View style={styles.reasonMetrics}>
-            <Text style={styles.reasonMetric}>3-day avg: High</Text>
-            <Text style={styles.reasonMetric}>Peak: 2-5 PM</Text>
-          </View>
-        </View>
+        )}
 
-        {/* Social Connection */}
-        <View style={styles.reasonCard}>
-          <View style={styles.reasonHeader}>
-            <Text style={styles.reasonIcon}>💚</Text>
-            <Text style={styles.reasonCardTitle}>Connection Level</Text>
-            <Text style={styles.reasonImpact}>+6%</Text>
+        {/* Heart Rate - Health Status */}
+        {day.biometricData && day.biometricData.heartRate > 0 && (
+          <View style={styles.reasonCard}>
+            <View style={styles.reasonHeader}>
+              <Text style={styles.reasonIcon}>❤️</Text>
+              <Text style={styles.reasonCardTitle}>Heart Rate & Fitness</Text>
+              <Text style={[styles.reasonImpact, { color: day.biometricData.heartRate < 60 ? '#34C759' : day.biometricData.heartRate <= 80 ? '#FF9500' : '#FF3B30' }]}>
+                {day.biometricData.heartRate < 60 ? '+3%' : day.biometricData.heartRate <= 80 ? '±0%' : '-3%'}
+              </Text>
+            </View>
+            <Text style={styles.reasonDescription}>
+              {day.biometricData.heartRate < 60
+                ? 'Low resting heart rate indicates excellent fitness and helps maintain high energy.'
+                : day.biometricData.heartRate <= 80
+                ? 'Resting heart rate is in the normal range.'
+                : 'Elevated resting heart rate (>80 bpm) may indicate stress or lower fitness, affecting energy.'}
+            </Text>
+            <View style={styles.reasonMetrics}>
+              <Text style={styles.reasonMetric}>Resting HR: {day.biometricData.heartRate} bpm</Text>
+              <Text style={styles.reasonMetric}>Status: {day.biometricData.heartRate < 60 ? 'Excellent' : day.biometricData.heartRate <= 80 ? 'Normal' : 'Elevated'}</Text>
+            </View>
           </View>
-          <Text style={styles.reasonDescription}>
-            Strong social connections this week are providing resilience. Regular check-ins with friends and family are helping.
-          </Text>
-          <View style={styles.reasonMetrics}>
-            <Text style={styles.reasonMetric}>Social Score: 78%</Text>
-            <Text style={styles.reasonMetric}>Trend: Improving</Text>
+        )}
+
+        {/* Fallback for future days or no data */}
+        {!day.epcScores && !day.biometricData && (
+          <View style={styles.reasonCard}>
+            <View style={styles.reasonHeader}>
+              <Text style={styles.reasonIcon}>🔮</Text>
+              <Text style={styles.reasonCardTitle}>Forecast Prediction</Text>
+              <Text style={styles.reasonImpact}>{day.percentage}%</Text>
+            </View>
+            <Text style={styles.reasonDescription}>
+              This forecast is based on your recent burnout history and trends. Actual data will be available once biometric tracking is active.
+            </Text>
+            <View style={styles.reasonMetrics}>
+              <Text style={styles.reasonMetric}>Status: Predicted</Text>
+              <Text style={styles.reasonMetric}>Confidence: Medium</Text>
+            </View>
           </View>
-        </View>
+        )}
       </View>
     </View>
   );

@@ -3,9 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { ApiService } from '../../services/ApiService';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import PDFViewer from '../../components/PDFViewer';
+import { ApiService } from '../../services/ApiService';
 
 interface UserProfile {
   id?: string;
@@ -154,8 +154,69 @@ export default function SettingsProfile() {
     Alert.alert('Privacy', 'Privacy settings coming soon!');
   };
 
-  const handleBiometricPress = () => {
-    Alert.alert('Biometric Data', 'Biometric settings coming soon!');
+  const handleBiometricPress = async () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Apple Health Permissions', 'Available on iOS devices with a native build.');
+      return;
+    }
+
+    try {
+      const { initHealthKit, checkHealthKitPermissions, getAppleHealthDataRealOnly, getHealthKitStatus } = await import('../../utils/appleHealth');
+
+      // First, let's check the current HealthKit status
+      const status = await getHealthKitStatus();
+      console.log('🔍 HealthKit Status:', status);
+
+      // Try to initialize HealthKit
+      const success = await initHealthKit();
+      console.log('🔍 HealthKit Init Result:', success);
+
+      // Now try to get actual health data
+      let healthData = null;
+      let dataError = null;
+      
+      try {
+        healthData = await getAppleHealthDataRealOnly();
+        console.log('🔍 Health Data Retrieved:', healthData ? 'Success' : 'Failed');
+      } catch (error) {
+        dataError = error;
+        console.error('🔍 Health Data Error:', error);
+      }
+
+      // Check permissions after the attempt
+      const permissionCheck = await checkHealthKitPermissions();
+
+      // Build a comprehensive status message
+      let statusMessage = `HealthKit Status:\n`;
+      statusMessage += `• Platform: ${status.platform}\n`;
+      statusMessage += `• HealthKit Module: ${status.healthKitModule ? 'Available' : 'Missing'}\n`;
+      statusMessage += `• Bridge Status: ${status.bridgeStatus}\n`;
+      statusMessage += `• Device Available: ${status.isAvailable ? 'Yes' : 'No'}\n`;
+      
+      if (dataError) {
+        statusMessage += `• Data Read Error: ${dataError.message}\n`;
+      }
+
+      if (healthData) {
+        statusMessage += `\n📊 Health Data Retrieved:\n`;
+        statusMessage += `• Steps: ${healthData.steps?.count || 0}\n`;
+        statusMessage += `• Exercise: ${healthData.activityRings?.exercise?.current || 0} min\n`;
+        statusMessage += `• Active Energy: ${healthData.activityRings?.move?.current || 0} kcal\n`;
+        statusMessage += `• Sleep: ${healthData.sleep?.hoursSlept || 0} hours\n`;
+        statusMessage += `• Resting HR: ${healthData.heartRate?.resting || 0} bpm\n`;
+        statusMessage += `• HRV: ${healthData.heartRate?.hrv || 0} ms\n`;
+        statusMessage += `• Data Source: ${healthData.source}\n`;
+      } else {
+        statusMessage += `\n❌ No health data retrieved\n`;
+      }
+
+      statusMessage += `\n${permissionCheck.guidanceMessage}`;
+
+      Alert.alert('Apple Health Status', statusMessage);
+    } catch (error) {
+      console.error('🔍 HealthKit Error:', error);
+      Alert.alert('Apple Health Error', `Unable to access HealthKit: ${(error as Error).message}`);
+    }
   };
 
   const handlePrivacyPolicyPress = () => {
@@ -265,12 +326,12 @@ export default function SettingsProfile() {
               <Text style={styles.settingsHeaderTitle}>Settings & Preferences</Text>
             </View>
             
-            <TouchableOpacity style={styles.settingsButton} onPress={handleBiometricPress}>
+            <TouchableOpacity style={[styles.settingsButton, styles.healthButton]} onPress={handleBiometricPress}>
               <View style={styles.settingsButtonContent}>
-                <Ionicons name="finger-print-outline" size={24} color="#1C1C1E" />
-                <Text style={styles.settingsButtonText}>Biometric Data</Text>
+                <Ionicons name="finger-print-outline" size={24} color="#FFFFFF" />
+                <Text style={[styles.settingsButtonText, styles.healthButtonText]}>Apple Health permissions</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
+              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             
           {/* Removed duplicate Privacy Settings from here; moved under Profile */}
@@ -510,5 +571,13 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     color: '#FF3B30',
+  },
+  // Health button styles
+  healthButton: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  healthButtonText: {
+    color: '#FFFFFF',
   },
 });

@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "expo-on-replit",
+    "name": "Forecee",
     "slug": "forecee",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/adaptive-icon.png",
+    "icon": "./assets/images/foreseelogoapp.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.foresee",
+      "bundleIdentifier": "com.capacitycreator.forecee",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -26,10 +26,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/foreseelogoapp.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.foresee"
+      "package": "com.capacitycreator.forecee"
     },
     "web": {
       "bundler": "metro",
@@ -41,17 +41,19 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/foreseelogoapp.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
       ],
-      ["@kingstinct/react-native-healthkit", {
-        "NSHealthShareUsageDescription": "This app reads your steps, heart data, sleep and mindfulness to personalize your EPC scores and wellness guidance.",
-        "NSHealthUpdateUsageDescription": "This app writes health data only when you explicitly choose to log activities (not used currently).",
-        "background": true
-      }],
+      [
+        "react-native-health",
+        {
+          "healthSharePermission": "This app needs access to your health data to display your health metrics and statistics.",
+          "healthUpdatePermission": "This app needs access to update your health data for better tracking and analysis."
+        }
+      ],
       "expo-font",
       "expo-secure-store",
       "expo-web-browser",
@@ -62,9 +64,7 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "a97c70bc-c60e-4535-ac32-28bf3c0b269a"
-      },
+      "eas": { "projectId": "a97c70bc-c60e-4535-ac32-28bf3c0b269a" },
       "spotify": {
         "clientId": "3c81ab45f65d47b994709edae2595edf",
         "redirectPath": "spotify-auth"
@@ -72,8 +72,6 @@
     },
     "owner": "ebxdk",
     "runtimeVersion": "1.0.0",
-    "updates": {
-      "url": "https://u.expo.dev/a97c70bc-c60e-4535-ac32-28bf3c0b269a"
-    }
+    "updates": { "url": "https://u.expo.dev/a97c70bc-c60e-4535-ac32-28bf3c0b269a" }
   }
 }

@@ -8,7 +8,7 @@
  */
 
 import { BurnoutDataPoint } from '../types/BurnoutDataPoint';
-import { getAppleHealthDataOrMock } from './appleHealth';
+import { getAppleHealthDataRealOnly } from './appleHealth';
 
 export interface BiometricPattern {
   heartRateVariability: number; // 0-100 (higher = better stress management)
@@ -47,7 +47,7 @@ export async function getBiometricPattern(hour: number, minute: number): Promise
   let stressLevel = 50;       // medium
 
   try {
-    const healthData = await getAppleHealthDataOrMock();
+    const healthData = await getAppleHealthDataRealOnly();
     const sleepQualityMap = { 'Excellent': 90, 'Good': 75, 'Fair': 50, 'Poor': 25 };
     sleepQuality = sleepQualityMap[healthData.sleep.sleepQuality as keyof typeof sleepQualityMap] ?? sleepQuality;
     activityLevel = Math.max(0, Math.min(300, healthData.activityRings?.move?.percentage ?? activityLevel));
