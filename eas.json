@@ -14,13 +14,15 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_USE_NEW_ARCH": "1"
+        "EXPO_USE_NEW_ARCH": "1",
+        "EXPO_PUBLIC_API_URL": "https://forecee-2-ebadkhan5487.replit.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_USE_NEW_ARCH": "1"
+        "EXPO_USE_NEW_ARCH": "1",
+        "EXPO_PUBLIC_API_URL": "https://forecee-2-ebadkhan5487.replit.app"
       }
     }
   },
