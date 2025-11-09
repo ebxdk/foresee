@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { getEnergyDecayStatus, getDailyActivity } from '../utils/storage';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
+import { getDailyActivity, getEnergyDecayStatus } from '../utils/storage';
 
 interface EnergyDecayStatusProps {
   onRefresh?: () => void;
@@ -166,88 +167,88 @@ export default function EnergyDecayStatus({ onRefresh }: EnergyDecayStatusProps)
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
-    margin: 16,
+    borderRadius: moderateScale(12),
+    padding: scale(16),
+    margin: scale(16),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 }, // Keep fixed
+    shadowOpacity: 0.1, // Keep fixed
+    shadowRadius: 4, // Keep fixed
+    elevation: 3, // Keep fixed
   },
   title: {
-    fontSize: 20,
+    fontSize: RFValue(20),
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
     textAlign: 'center',
   },
   section: {
-    marginBottom: 16,
-    padding: 12,
+    marginBottom: verticalScale(16),
+    padding: scale(12),
     backgroundColor: 'white',
-    borderRadius: 8,
-    borderLeftWidth: 4,
+    borderRadius: moderateScale(8),
+    borderLeftWidth: 4, // Keep fixed
     borderLeftColor: '#3498db',
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '600',
     color: '#34495e',
-    marginBottom: 8,
+    marginBottom: verticalScale(8),
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: verticalScale(4),
   },
   label: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: '#7f8c8d',
     flex: 1,
   },
   value: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     fontWeight: '600',
     color: '#2c3e50',
     textAlign: 'right',
     flex: 1,
   },
   description: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: '#2c3e50',
     fontStyle: 'italic',
-    marginBottom: 8,
+    marginBottom: verticalScale(8),
   },
   bufferInfo: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: '#27ae60',
     fontWeight: '500',
   },
   refreshButton: {
     backgroundColor: '#3498db',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: scale(24),
+    borderRadius: moderateScale(8),
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: verticalScale(8),
   },
   refreshButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '600',
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     color: '#7f8c8d',
     textAlign: 'center',
     fontStyle: 'italic',
   },
   errorText: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     color: '#e74c3c',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
 });

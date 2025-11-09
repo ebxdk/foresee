@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import Animated, {
     Easing,
@@ -15,6 +15,7 @@ import Animated, {
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { useHaptic } from '@/hooks/useHaptic';
+import { verticalScale } from '../utils/responsive';
 import { ThemedText } from './ThemedText';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -225,9 +226,9 @@ const styles = StyleSheet.create({
   },
   glowContainer: {
     position: 'absolute',
-    top: -8,
-    left: -8,
-    zIndex: 0,
+    top: verticalScale(-8),
+    left: verticalScale(-8),
+    zIndex: 0, // Keep fixed
   },
   glowEffect: {
     position: 'absolute',
@@ -237,14 +238,14 @@ const styles = StyleSheet.create({
     shadowOffset: {
       width: 0,
       height: 4,
-    },
-    shadowRadius: 12,
-    shadowOpacity: 0.1,
-    elevation: 6,
+    }, // Keep fixed
+    shadowRadius: 12, // Keep fixed
+    shadowOpacity: 0.1, // Keep fixed
+    elevation: 6, // Keep fixed
     borderRadius: 1000, // Very large to ensure circular shadow
     backgroundColor: 'rgba(255, 255, 255, 0.25)', // Glassmorphism background
     backdropFilter: 'blur(10px)',
-    zIndex: 1,
+    zIndex: 1, // Keep fixed
   },
   svg: {
     transform: [{ rotateZ: '0deg' }],
@@ -257,15 +258,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
+    zIndex: 2, // Keep fixed
   },
   percentage: {
     fontWeight: '700',
-    marginBottom: 2,
+    marginBottom: verticalScale(2),
     textAlign: 'center',
   },
   title: {
-    opacity: 0.8,
+    opacity: 0.8, // Keep fixed
     fontWeight: '500',
     textAlign: 'center',
   },

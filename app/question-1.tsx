@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 import { useQuestionnaire } from '../utils/QuestionnaireContext';
 
 export default function Question1Page() {
@@ -61,8 +62,12 @@ export default function Question1Page() {
         </View>
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
+      {/* Content - Now Scrollable */}
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.questionContainer}>
           <Text style={styles.questionTitle}>{question.question}</Text>
           
@@ -95,7 +100,7 @@ export default function Question1Page() {
             ))}
           </View>
         </View>
-      </View>
+      </ScrollView>
 
       {/* Footer */}
       <View style={styles.footer}>
@@ -125,107 +130,112 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 24,
+    paddingHorizontal: scale(24),
+    paddingTop: verticalScale(20),
+    paddingBottom: verticalScale(16), // Reduced from 24 to save space
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: scale(44),
+    height: scale(44),
+    borderRadius: moderateScale(22),
     backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   backButtonText: {
-    fontSize: 20,
+    fontSize: RFValue(20),
     color: '#000000',
     fontWeight: '600',
   },
   progressContainer: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: scale(16),
   },
   progressBar: {
-    height: 6,
+    height: verticalScale(6),
     backgroundColor: '#E5E5EA',
-    borderRadius: 3,
-    marginBottom: 8,
+    borderRadius: 3, // Keep small radius fixed
+    marginBottom: verticalScale(8),
   },
   progressFill: {
     width: '10%',
     height: '100%',
     backgroundColor: '#000000',
-    borderRadius: 3,
+    borderRadius: 3, // Keep small radius fixed
   },
   progressText: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: '#8E8E93',
     fontWeight: '600',
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+  },
+  contentContainer: {
+    paddingHorizontal: scale(24),
+    paddingBottom: verticalScale(20), // Ensure space at bottom
   },
   questionContainer: {
-    paddingVertical: 20,
+    paddingVertical: verticalScale(12), // Reduced from 20
   },
   categoryBadge: {
     alignSelf: 'flex-start',
     backgroundColor: '#000000',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 24,
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: moderateScale(16),
+    marginBottom: verticalScale(24),
   },
   categoryText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: RFValue(12),
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.5, // Keep fixed
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
   questionTitle: {
-    fontSize: 36,
+    fontSize: RFValue(34), // Slightly smaller from 36
     fontWeight: '700',
     color: '#000000',
-    lineHeight: 44,
-    marginBottom: 32,
+    lineHeight: RFValue(42), // Adjusted from 44
+    marginBottom: verticalScale(24), // Reduced from 32
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
   optionsContainer: {
-    gap: 16,
+    gap: verticalScale(12), // Reduced from 16 for tighter spacing
   },
   optionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: verticalScale(16), // Reduced from 20
+    paddingHorizontal: scale(16), // Reduced from 20
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
+    borderRadius: moderateScale(16),
+    borderWidth: 2, // Keep fixed
     borderColor: '#000000',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 1 }, // Keep fixed
+    shadowOpacity: 0.05, // Keep fixed
+    shadowRadius: 2, // Keep fixed
+    elevation: 1, // Keep fixed
+    minHeight: verticalScale(60), // Ensure minimum height for touch target
   },
   optionButtonSelected: {
     borderColor: '#000000',
     backgroundColor: '#F2F2F7',
   },
   optionCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
+    width: scale(24),
+    height: scale(24),
+    borderRadius: moderateScale(12),
+    borderWidth: 2, // Keep fixed
     borderColor: '#8E8E93',
-    marginRight: 16,
+    marginRight: scale(12), // Reduced from 16
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -233,17 +243,17 @@ const styles = StyleSheet.create({
     borderColor: '#000000',
   },
   optionCircleInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: scale(12),
+    height: scale(12),
+    borderRadius: moderateScale(6),
     backgroundColor: '#000000',
   },
   optionText: {
     flex: 1,
-    fontSize: 17,
+    fontSize: RFValue(16), // Slightly smaller from 17
     color: '#000000',
     fontWeight: '500',
-    lineHeight: 22,
+    lineHeight: RFValue(21), // Adjusted from 22
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
   optionTextSelected: {
@@ -251,29 +261,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 34,
-    paddingTop: 16,
+    paddingHorizontal: scale(24),
+    paddingBottom: verticalScale(34),
+    paddingTop: verticalScale(12), // Reduced from 16
+    backgroundColor: '#FFFFFF', // Ensure it's not transparent
+    borderTopWidth: 1, // Add subtle border
+    borderTopColor: '#F2F2F7', // Subtle separator
   },
   nextButton: {
     backgroundColor: '#000000',
-    paddingVertical: 16,
-    borderRadius: 28,
+    paddingVertical: verticalScale(16),
+    borderRadius: moderateScale(28),
     alignItems: 'center',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 }, // Keep fixed
+    shadowOpacity: 0.1, // Keep fixed
+    shadowRadius: 8, // Keep fixed
+    elevation: 4, // Keep fixed
   },
   nextButtonDisabled: {
     backgroundColor: '#E5E5EA',
-    shadowOpacity: 0,
-    elevation: 0,
+    shadowOpacity: 0, // Keep fixed
+    elevation: 0, // Keep fixed
   },
   nextButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: RFValue(18),
     fontWeight: '600',
     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },

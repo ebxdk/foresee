@@ -3,6 +3,7 @@ import React from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { getGreenToOrangeGradient } from '../utils/colorUtils';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -105,7 +106,7 @@ const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onP
 
               {/* Ring indicator instead of emoji */}
               <View style={styles.ringContainer}>
-                <BurnoutRing percentage={day.percentage} size={28} />
+                <BurnoutRing percentage={day.percentage} size={scale(28)} />
               </View>
 
               {/* Burnout percentage bar with confidence indicators */}
@@ -160,44 +161,44 @@ const BurnoutForecastWidget: React.FC<BurnoutForecastWidgetProps> = ({ data, onP
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    margin: 8, // Reduced from 16 to make card wider
+    borderRadius: moderateScale(20),
+    padding: scale(16),
+    margin: scale(8), // Reduced from 16 to make card wider
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 }, // Keep fixed for shadows
+    shadowOpacity: 0.08, // Keep fixed
+    shadowRadius: 12, // Keep fixed
+    elevation: 4, // Keep fixed
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 0.5,
+    marginBottom: verticalScale(16),
+    paddingBottom: verticalScale(8),
+    borderBottomWidth: 0.5, // Keep fixed for hairlines
     borderBottomColor: '#E5E5EA',
   },
   headerTitle: {
-    fontSize: 12, // Reduced from 13 (5% smaller)
+    fontSize: RFValue(12), // Reduced from 13 (5% smaller)
     fontWeight: '600',
     color: '#8E8E93',
-    letterSpacing: 0.5,
+    letterSpacing: 0.5, // Keep fixed
   },
   forecastList: {
-    gap: 4, // Reduced from 8 to make rows slimmer
+    gap: verticalScale(4), // Reduced from 8 to make rows slimmer
   },
   forecastRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6, // Reduced from 8 to make rows slimmer
-    paddingHorizontal: 4,
+    paddingVertical: verticalScale(6), // Reduced from 8 to make rows slimmer
+    paddingHorizontal: scale(4),
   },
   dayContainer: {
-    width: 60,
+    width: scale(60),
     alignItems: 'flex-start',
   },
   dayText: {
-    fontSize: 17, // Increased from 15 to make it bigger
+    fontSize: RFValue(17), // Increased from 15 to make it bigger
     fontWeight: '500',
     color: '#1C1C1E',
   },
@@ -206,50 +207,50 @@ const styles = StyleSheet.create({
     color: '#007AFF',
   },
   ringContainer: {
-    width: 32,
+    width: scale(32),
     alignItems: 'center',
-    marginLeft: 4,
+    marginLeft: scale(4),
   },
   burnoutContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginLeft: 8,
+    marginLeft: scale(8),
   },
   burnoutBar: {
     flex: 1,
-    height: 8,
+    height: verticalScale(8),
     backgroundColor: '#E5E5EA',
-    borderRadius: 4,
-    marginRight: 12,
+    borderRadius: 4, // Keep small radius fixed
+    marginRight: scale(12),
     overflow: 'hidden',
     position: 'relative',
   },
   confidenceInterval: {
     position: 'absolute',
     height: '100%',
-    borderRadius: 4,
-    opacity: 0.3,
+    borderRadius: 4, // Keep small radius fixed
+    opacity: 0.3, // Keep fixed
   },
   burnoutFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 4, // Keep small radius fixed
     position: 'relative',
     zIndex: 1,
   },
   percentageContainer: {
     alignItems: 'flex-end',
-    minWidth: 60,
+    minWidth: scale(60),
   },
   burnoutText: {
-    fontSize: 15,
+    fontSize: RFValue(15),
     fontWeight: '600',
     textAlign: 'right',
   },
   divider: {
-    height: 1,
+    height: 1, // Keep hairline fixed
     backgroundColor: '#E5E5EA',
-    marginVertical: 6, // Reduced from 8 to match slimmer row design
+    marginVertical: verticalScale(6), // Reduced from 8 to match slimmer row design
   },
 });
 

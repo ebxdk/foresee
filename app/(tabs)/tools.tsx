@@ -7,8 +7,9 @@ import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { EPCScores } from '../../utils/epcScoreCalc';
-import { getUserState } from '../../utils/storage';
+import { markToolUsed } from '../../utils/notificationService';
 import * as Storage from '../../utils/storage';
+import { getUserState } from '../../utils/storage';
 
 // All tools are now pages, no modal imports needed
 
@@ -405,6 +406,11 @@ export default function ToolsScreen() {
   
   const handleToolPress = (toolId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Track tool usage for notifications
+    markToolUsed().catch(error => {
+      console.error('Failed to mark tool usage:', error);
+    });
     
     // Navigate to pages for all tools
     if (toolId === 'HydrationHero') {

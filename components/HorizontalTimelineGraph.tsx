@@ -1,5 +1,6 @@
 import React from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -235,86 +236,86 @@ const HorizontalTimelineGraph: React.FC<HorizontalTimelineGraphProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginHorizontal: 4,
+    borderRadius: moderateScale(20),
+    padding: scale(20),
+    marginHorizontal: scale(4),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 }, // Keep fixed
+    shadowOpacity: 0.08, // Keep fixed
+    shadowRadius: 12, // Keep fixed
+    elevation: 4, // Keep fixed
   },
   chartContainer: {
     position: 'relative',
-    height: 140,
-    marginBottom: 16,
+    height: verticalScale(140),
+    marginBottom: verticalScale(16),
   },
   chartHeader: {
     position: 'absolute',
     top: 0,
     left: 0,
-    zIndex: 2,
+    zIndex: 2, // Keep fixed
   },
   activityLevel: {
-    fontSize: 12,
+    fontSize: RFValue(12),
     fontWeight: '600',
     color: '#8E8E93',
-    letterSpacing: 0.5,
+    letterSpacing: 0.5, // Keep fixed
   },
   gridContainer: {
     position: 'absolute',
-    top: 20,
+    top: verticalScale(20),
     left: 0,
     right: 0,
-    height: 80,
+    height: verticalScale(80),
     justifyContent: 'space-between',
   },
   gridLine: {
-    height: 1,
+    height: 1, // Keep fixed
     backgroundColor: '#F2F2F7',
   },
   barsContainer: {
     position: 'absolute',
-    top: 25,
+    top: verticalScale(25),
     left: 0,
     right: 0,
-    height: 100,
+    height: verticalScale(100),
     flexDirection: 'row',
     alignItems: 'flex-end',
   },
   bar: {
     position: 'absolute',
     backgroundColor: '#FF453A',
-    borderRadius: 1.5,
-    bottom: 20, // Leave space for time labels
+    borderRadius: 1.5, // Keep small radius fixed
+    bottom: verticalScale(20), // Leave space for time labels
     shadowColor: '#FF453A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 }, // Keep fixed
+    shadowOpacity: 0.2, // Keep fixed
+    shadowRadius: 2, // Keep fixed
+    elevation: 2, // Keep fixed
   },
   timeLabels: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 16,
+    height: verticalScale(16),
     flexDirection: 'row',
   },
   timeLabel: {
     position: 'absolute',
-    width: 24,
+    width: scale(24),
     alignItems: 'center',
   },
   timeLabelText: {
-    fontSize: 10,
+    fontSize: RFValue(10),
     fontWeight: '500',
     color: '#8E8E93',
-    letterSpacing: 0.1,
+    letterSpacing: 0.1, // Keep fixed
   },
   metricsContainer: {
-    paddingTop: 12,
-    borderTopWidth: 1,
+    paddingTop: verticalScale(12),
+    borderTopWidth: 1, // Keep fixed
     borderTopColor: '#F2F2F7',
   },
   metricRow: {
@@ -327,17 +328,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   metricValue: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '700',
     color: '#FF453A',
-    letterSpacing: -0.3,
+    letterSpacing: -0.3, // Keep fixed
   },
   metricLabel: {
-    fontSize: 9,
+    fontSize: RFValue(9),
     fontWeight: '600',
     color: '#8E8E93',
-    marginTop: 2,
-    letterSpacing: 0.4,
+    marginTop: verticalScale(2),
+    letterSpacing: 0.4, // Keep fixed
   },
 });
 

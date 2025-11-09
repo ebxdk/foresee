@@ -9,6 +9,7 @@ import { Animated, Image, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { registerDecayBackgroundFetch } from '../utils/backgroundTasks';
+import { initializeNotifications } from '../utils/notificationService';
 import { QuestionnaireProvider } from '../utils/QuestionnaireContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -25,6 +26,11 @@ export default function RootLayout() {
   useEffect(() => {
     // Register background fetch task that runs decay/score tails
     registerDecayBackgroundFetch();
+    
+    // Initialize notification system
+    initializeNotifications().catch(error => {
+      console.error('Failed to initialize notifications:', error);
+    });
   }, []);
 
   // Preload image assets during splash

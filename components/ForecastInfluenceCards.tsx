@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { EPCScores } from '../utils/epcScoreCalc';
 import { ForecastConfidence } from '../utils/forecastCalc';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 
 interface ForecastDay {
   day: string;
@@ -293,35 +294,35 @@ const ForecastInfluenceCards: React.FC<ForecastInfluenceCardsProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    padding: scale(16),
   },
   title: {
-    fontSize: 18,
+    fontSize: RFValue(18),
     fontWeight: '600',
     color: '#1C1C1E',
-    marginBottom: 4,
+    marginBottom: verticalScale(4),
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: '#8E8E93',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   card: {
     backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
+    borderRadius: moderateScale(12),
+    padding: scale(16),
+    marginBottom: verticalScale(12),
+    borderWidth: 1, // Keep fixed
     borderColor: '#E5E5EA',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: verticalScale(8),
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '600',
     color: '#1C1C1E',
     flex: 1,
@@ -331,29 +332,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   value: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '700',
-    marginRight: 6,
+    marginRight: scale(6),
   },
   impactIcon: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '600',
   },
   description: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: RFValue(20),
+    marginBottom: verticalScale(12),
   },
   weightBar: {
-    height: 4,
+    height: verticalScale(4),
     backgroundColor: '#E5E5EA',
-    borderRadius: 2,
+    borderRadius: 2, // Keep small radius fixed
     overflow: 'hidden',
   },
   weightFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 2, // Keep small radius fixed
   },
 });
 

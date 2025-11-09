@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useQuestionnaire } from '../utils/QuestionnaireContext';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 
 export default function Question8Page() {
   const router = useRouter();
@@ -53,7 +54,11 @@ export default function Question8Page() {
           <Text style={styles.progressText}>8 of 10</Text>
         </View>
       </View>
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.questionContainer}>
           <Text style={styles.questionTitle}>{question.question}</Text>
           <View style={styles.optionsContainer}>
@@ -74,7 +79,7 @@ export default function Question8Page() {
             ))}
           </View>
         </View>
-      </View>
+      </ScrollView>
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.nextButton, selectedOption === null && styles.nextButtonDisabled]}
@@ -91,28 +96,172 @@ export default function Question8Page() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
-  backButtonText: { fontSize: 20, color: '#000000', fontWeight: '600' },
-  progressContainer: { flex: 1, marginLeft: 16 },
-  progressBar: { height: 6, backgroundColor: '#E5E5EA', borderRadius: 3, marginBottom: 8 },
-  progressFill: { width: '80%', height: '100%', backgroundColor: '#000000', borderRadius: 3 },
-  progressText: { fontSize: 14, color: '#8E8E93', fontWeight: '600', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif' },
-  content: { flex: 1, paddingHorizontal: 24 },
-  questionContainer: { paddingVertical: 20 },
-  questionTitle: { fontSize: 36, fontWeight: '700', color: '#000000', lineHeight: 44, marginBottom: 32, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif' },
-  optionsContainer: { gap: 16 },
-  optionButton: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 2, borderColor: '#000000' },
-  optionButtonSelected: { backgroundColor: '#F2F2F7' },
-  optionCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#8E8E93', marginRight: 16, justifyContent: 'center', alignItems: 'center' },
-  optionCircleSelected: { borderColor: '#000000' },
-  optionCircleInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#000000' },
-  optionText: { flex: 1, fontSize: 17, color: '#000000', fontWeight: '500', lineHeight: 22, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif' },
-  optionTextSelected: { fontWeight: '600' },
-  footer: { paddingHorizontal: 24, paddingBottom: 34, paddingTop: 16 },
-  nextButton: { backgroundColor: '#000000', paddingVertical: 16, borderRadius: 28, alignItems: 'center' },
-  nextButtonDisabled: { backgroundColor: '#E5E5EA' },
-  nextButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif' },
-  nextButtonTextDisabled: { color: '#8E8E93' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    paddingHorizontal: scale(24),
+    paddingTop: verticalScale(20),
+    paddingBottom: verticalScale(16),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: scale(44),
+    height: scale(44),
+    borderRadius: moderateScale(22),
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: RFValue(20),
+    color: '#000000',
+    fontWeight: '600',
+  },
+  progressContainer: {
+    flex: 1,
+    marginLeft: scale(16),
+  },
+  progressBar: {
+    height: verticalScale(6),
+    backgroundColor: '#E5E5EA',
+    borderRadius: 3,
+    marginBottom: verticalScale(8),
+  },
+  progressFill: {
+    width: '80%',
+    height: '100%',
+    backgroundColor: '#000000',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: RFValue(14),
+    color: '#8E8E93',
+    fontWeight: '600',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: scale(24),
+    paddingBottom: verticalScale(20),
+  },
+  questionContainer: {
+    paddingVertical: verticalScale(12),
+  },
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#000000',
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: moderateScale(16),
+    marginBottom: verticalScale(24),
+  },
+  categoryText: {
+    color: '#FFFFFF',
+    fontSize: RFValue(12),
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  questionTitle: {
+    fontSize: RFValue(34),
+    fontWeight: '700',
+    color: '#000000',
+    lineHeight: RFValue(42),
+    marginBottom: verticalScale(24),
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  optionsContainer: {
+    gap: verticalScale(12),
+  },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: verticalScale(16),
+    paddingHorizontal: scale(16),
+    backgroundColor: '#FFFFFF',
+    borderRadius: moderateScale(16),
+    borderWidth: 2,
+    borderColor: '#000000',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    minHeight: verticalScale(60),
+  },
+  optionButtonSelected: {
+    borderColor: '#000000',
+    backgroundColor: '#F2F2F7',
+  },
+  optionCircle: {
+    width: scale(24),
+    height: scale(24),
+    borderRadius: moderateScale(12),
+    borderWidth: 2,
+    borderColor: '#8E8E93',
+    marginRight: scale(12),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  optionCircleSelected: {
+    borderColor: '#000000',
+  },
+  optionCircleInner: {
+    width: scale(12),
+    height: scale(12),
+    borderRadius: moderateScale(6),
+    backgroundColor: '#000000',
+  },
+  optionText: {
+    flex: 1,
+    fontSize: RFValue(16),
+    color: '#000000',
+    fontWeight: '500',
+    lineHeight: RFValue(21),
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  optionTextSelected: {
+    color: '#000000',
+    fontWeight: '600',
+  },
+  footer: {
+    paddingHorizontal: scale(24),
+    paddingBottom: verticalScale(34),
+    paddingTop: verticalScale(12),
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
+  },
+  nextButton: {
+    backgroundColor: '#000000',
+    paddingVertical: verticalScale(16),
+    borderRadius: moderateScale(28),
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  nextButtonDisabled: {
+    backgroundColor: '#E5E5EA',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  nextButtonText: {
+    color: '#FFFFFF',
+    fontSize: RFValue(18),
+    fontWeight: '600',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  },
+  nextButtonTextDisabled: {
+    color: '#8E8E93',
+  },
 }); 

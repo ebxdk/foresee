@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EPCScores } from '../utils/epcScoreCalc';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 import { getEnergyBuffer, getScoreTails } from '../utils/storage';
 
 interface EnhancedEPCDisplayProps {
@@ -223,45 +224,45 @@ export default function EnhancedEPCDisplay({ scores, onScoresChange }: EnhancedE
 
 const styles = StyleSheet.create({
   touchableContainer: {
-    marginHorizontal: 16,
-    marginVertical: 8,
+    marginHorizontal: scale(16),
+    marginVertical: verticalScale(8),
   },
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: moderateScale(16),
+    padding: scale(20),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 }, // Keep fixed
+    shadowOpacity: 0.12, // Keep fixed
+    shadowRadius: 12, // Keep fixed
+    elevation: 6, // Keep fixed
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   title: {
-    fontSize: 20,
+    fontSize: RFValue(20),
     fontWeight: '700',
     color: '#1C1C1E',
   },
   activeEffectsIndicator: {
     backgroundColor: '#FFE4E1',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: moderateScale(12),
+    paddingHorizontal: scale(8),
+    paddingVertical: verticalScale(4),
   },
   activeEffectsText: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '600',
   },
   scoresContainer: {
-    gap: 16,
+    gap: verticalScale(16),
   },
   scoreBarContainer: {
-    gap: 8,
+    gap: verticalScale(8),
   },
   scoreLabelRow: {
     flexDirection: 'row',
@@ -269,77 +270,77 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scoreLabel: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '600',
     color: '#1C1C1E',
   },
   bufferIndicator: {
     backgroundColor: '#E8F5E8',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: moderateScale(8),
+    paddingHorizontal: scale(6),
+    paddingVertical: verticalScale(2),
   },
   bufferText: {
-    fontSize: 12,
+    fontSize: RFValue(12),
     fontWeight: '600',
     color: '#2E7D32',
   },
   tailIndicator: {
     backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: moderateScale(8),
+    paddingHorizontal: scale(6),
+    paddingVertical: verticalScale(2),
   },
   tailText: {
-    fontSize: 12,
+    fontSize: RFValue(12),
     fontWeight: '600',
     color: '#1976D2',
   },
   barContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: scale(12),
   },
   barBackground: {
     flex: 1,
-    height: 8,
-    borderRadius: 4,
+    height: verticalScale(8),
+    borderRadius: 4, // Keep small radius fixed
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 4, // Keep small radius fixed
   },
   scoreValue: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: '700',
     color: '#1C1C1E',
-    minWidth: 30,
+    minWidth: scale(30),
     textAlign: 'right',
   },
   effectsStatus: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
+    marginTop: verticalScale(16),
+    paddingTop: verticalScale(16),
+    borderTopWidth: 1, // Keep fixed
     borderTopColor: '#E5E5EA',
-    gap: 12,
+    gap: verticalScale(12),
   },
   effectItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: scale(8),
   },
   effectIcon: {
-    fontSize: 16,
+    fontSize: RFValue(16),
   },
   effectText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: RFValue(14),
     fontWeight: '500',
     color: '#1C1C1E',
   },
   effectTime: {
-    fontSize: 12,
+    fontSize: RFValue(12),
     color: '#8E8E93',
     fontWeight: '500',
   },

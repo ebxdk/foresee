@@ -1,0 +1,6 @@
+// TEMPLATE: Add to top of each question file after line 3-4
+
+import { useState } from 'react';  // Remove React from here
+import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';  // Add ScrollView
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';  // Add this line
+

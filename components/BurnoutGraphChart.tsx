@@ -4,6 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Line, LinearGradient, Mask, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { getAppleWeatherGradientColor, lightenHexColor } from '../utils/colorUtils';
+import { RFValue, moderateScale, scale, verticalScale } from '../utils/responsive';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -1130,38 +1131,38 @@ const BurnoutGraphChart: React.FC<BurnoutGraphChartProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: moderateScale(16),
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 }, // Keep fixed
+    shadowOpacity: 0.05, // Keep fixed
+    shadowRadius: 6, // Keep fixed
+    elevation: 2, // Keep fixed
   },
   chartContainer: {
     position: 'relative',
-    paddingTop: 16,
+    paddingTop: verticalScale(16),
   },
   xAxisLabels: {
     position: 'absolute',
-    height: 20,
+    height: verticalScale(20),
   },
   xAxisLabel: {
     alignItems: 'center',
-    width: 24,
+    width: scale(24),
   },
   xAxisLabelText: {
-    fontSize: isIOS ? 12 : 11, // iOS-optimized font size
+    fontSize: isIOS ? RFValue(12) : RFValue(11), // iOS-optimized font size
     fontWeight: '500',
     color: '#8E8E93',
     textAlign: 'center',
     fontFamily: isIOS ? '-apple-system' : undefined, // iOS system font
   },
   statusSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: scale(20),
+    paddingVertical: verticalScale(16),
     backgroundColor: '#FAFAFA',
-    borderTopWidth: 1,
+    borderTopWidth: 1, // Keep fixed
     borderTopColor: '#F2F2F7',
   },
   statusRow: {
@@ -1173,18 +1174,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statusValue: {
-    fontSize: isIOS ? 17 : 16, // iOS-optimized font size
+    fontSize: isIOS ? RFValue(17) : RFValue(16), // iOS-optimized font size
     fontWeight: '600',
     color: '#1C1C1E',
-    marginBottom: 2,
+    marginBottom: verticalScale(2),
     fontFamily: isIOS ? '-apple-system' : undefined, // iOS system font
   },
   statusLabel: {
-    fontSize: isIOS ? 12 : 11, // iOS-optimized font size
+    fontSize: isIOS ? RFValue(12) : RFValue(11), // iOS-optimized font size
     fontWeight: '500',
     color: '#8E8E93',
     textTransform: 'uppercase',
-    letterSpacing: isIOS ? 0.6 : 0.5, // iOS-optimized letter spacing
+    letterSpacing: isIOS ? 0.6 : 0.5, // Keep fixed
     fontFamily: isIOS ? '-apple-system' : undefined, // iOS system font
   },
 });

@@ -326,6 +326,17 @@ export default function SettingsProfile() {
               <Text style={styles.settingsHeaderTitle}>Settings & Preferences</Text>
             </View>
             
+            <TouchableOpacity 
+              style={styles.settingsButton} 
+              onPress={() => router.push('/notification-settings')}
+            >
+              <View style={styles.settingsButtonContent}>
+                <Ionicons name="notifications-outline" size={24} color="#1C1C1E" />
+                <Text style={styles.settingsButtonText}>Notifications</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </TouchableOpacity>
+            
             <TouchableOpacity style={[styles.settingsButton, styles.healthButton]} onPress={handleBiometricPress}>
               <View style={styles.settingsButtonContent}>
                 <Ionicons name="finger-print-outline" size={24} color="#FFFFFF" />
@@ -564,6 +575,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     textDecorationLine: 'underline',
+  },
+  footerLink: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textDecorationLine: 'underline',
+  },
+  footerSeparator: {
+    fontSize: 14,
+    color: '#8E8E93',
   },
   deleteButton: {
     backgroundColor: '#FFF6F6',

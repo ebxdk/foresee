@@ -13,7 +13,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
-          "fetch"
+          "fetch",
+          "remote-notification"
         ],
         "LSApplicationQueriesSchemes": [
           "spotify",
@@ -21,7 +22,8 @@
           "spotify-auth"
         ],
         "NSHealthShareUsageDescription": "This app reads your steps, heart data, sleep and mindfulness to personalize your EPC scores and wellness guidance.",
-        "NSHealthUpdateUsageDescription": "This app writes health data only when you explicitly choose to log activities (not used currently)."
+        "NSHealthUpdateUsageDescription": "This app writes health data only when you explicitly choose to log activities (not used currently).",
+        "NSUserNotificationsUsageDescription": "We'll send you gentle reminders to use your wellness tools and motivational quotes to support your journey."
       }
     },
     "android": {
@@ -52,6 +54,14 @@
         {
           "healthSharePermission": "This app needs access to your health data to display your health metrics and statistics.",
           "healthUpdatePermission": "This app needs access to update your health data for better tracking and analysis."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/foreseelogoapp.png",
+          "color": "#000000",
+          "sounds": []
         }
       ],
       "expo-font",
